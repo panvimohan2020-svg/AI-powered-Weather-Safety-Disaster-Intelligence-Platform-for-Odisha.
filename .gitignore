@@ -1,0 +1,64 @@
+# ==============================================================================
+# Odisha WRI (.gitignore) - Production Weather & Disaster Intelligence Platform
+# ==============================================================================
+
+# 1. Python Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# 2. Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# 3. Node.js & Frontend Build Outputs
+node_modules/
+*/node_modules/
+dist/
+*/dist/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 4. Sensitive Credentials, Cryptographic Keys & Local User Stores
+vapid_keys.json
+push_subscriptions.json
+*.pem
+*.key
+*.cer
+*.crt
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# 5. Operating System & IDE Specific
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# 6. Temporary Logs & Runtime Files
+*.log
+*.tmp
+*.bak
+*.swp
+

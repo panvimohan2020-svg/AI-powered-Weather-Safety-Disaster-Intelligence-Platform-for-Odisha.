@@ -1,0 +1,216 @@
+{
+  "model_version": "2.2.0-calibrated-histgb",
+  "trained_at": "2026-10-31T10:43:53.158642",
+  "training_data": {
+    "source": "Simulated multi-year meteorological dataset calibrated against Odisha IMD normals",
+    "districts_count": 30,
+    "total_records": 54750,
+    "train_range": "2019-01-01 to 2022-06-30",
+    "val_range": "2022-07-01 to 2022-12-31",
+    "test_range": "2023-01-01 to 2023-12-31",
+    "train_samples": 38310,
+    "val_samples": 5520,
+    "test_samples": 10920,
+    "class_distribution_train_rain_pct": 24.92,
+    "class_distribution_test_rain_pct": 25.37
+  },
+  "feature_columns": [
+    "LATITUDE",
+    "LONGITUDE",
+    "ELEVATION",
+    "DISTANCE_TO_COAST",
+    "T2M_MAX",
+    "T2M_MIN",
+    "RH2M",
+    "WS50M",
+    "PS",
+    "QV2M",
+    "PS_DELTA_24H",
+    "RAIN_YESTERDAY_BIN",
+    "VPD",
+    "DTR",
+    "THI",
+    "MOISTURE_FLUX",
+    "SIN_DOY",
+    "COS_DOY"
+  ],
+  "selected_champion": "Calibrated Balanced HistGB",
+  "cross_validation": {
+    "method": "5-Fold District-Grouped K-Fold (train set)",
+    "mean_roc_auc": 0.8448,
+    "std_roc_auc": 0.0105,
+    "mean_brier_score": 0.1555,
+    "std_brier_score": 0.0048
+  },
+  "benchmark_results": [
+    {
+      "model": "Baseline: Dummy Prior",
+      "accuracy": 0.7463,
+      "roc_auc": 0.5,
+      "pr_auc": 0.2537,
+      "f1_score": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "brier_score_loss": 0.1893,
+      "log_loss": 0.5664,
+      "confusion_matrix": [
+        [
+          8150,
+          0
+        ],
+        [
+          2770,
+          0
+        ]
+      ],
+      "test_samples": 10920,
+      "rain_positive_count": 2770,
+      "predicted_positive_count": 0
+    },
+    {
+      "model": "Baseline: Logistic Regression",
+      "accuracy": 0.7555,
+      "roc_auc": 0.83,
+      "pr_auc": 0.6386,
+      "f1_score": 0.6211,
+      "precision": 0.5117,
+      "recall": 0.7899,
+      "brier_score_loss": 0.1715,
+      "log_loss": 0.5177,
+      "confusion_matrix": [
+        [
+          6062,
+          2088
+        ],
+        [
+          582,
+          2188
+        ]
+      ],
+      "test_samples": 10920,
+      "rain_positive_count": 2770,
+      "predicted_positive_count": 4276
+    },
+    {
+      "model": "Balanced Random Forest",
+      "accuracy": 0.7848,
+      "roc_auc": 0.8508,
+      "pr_auc": 0.6853,
+      "f1_score": 0.6457,
+      "precision": 0.5544,
+      "recall": 0.7729,
+      "brier_score_loss": 0.1516,
+      "log_loss": 0.4629,
+      "confusion_matrix": [
+        [
+          6429,
+          1721
+        ],
+        [
+          629,
+          2141
+        ]
+      ],
+      "test_samples": 10920,
+      "rain_positive_count": 2770,
+      "predicted_positive_count": 3862
+    },
+    {
+      "model": "Calibrated Balanced HistGB (Champion)",
+      "accuracy": 0.8154,
+      "roc_auc": 0.8531,
+      "pr_auc": 0.6896,
+      "f1_score": 0.6202,
+      "precision": 0.6485,
+      "recall": 0.5942,
+      "brier_score_loss": 0.1252,
+      "log_loss": 0.393,
+      "confusion_matrix": [
+        [
+          7258,
+          892
+        ],
+        [
+          1124,
+          1646
+        ]
+      ],
+      "test_samples": 10920,
+      "rain_positive_count": 2770,
+      "predicted_positive_count": 2538
+    }
+  ],
+  "regime_breakdown": {
+    "rainy_conditions": {
+      "samples": 2770,
+      "recall": 0.5942,
+      "brier_score": 0.3092,
+      "notes": "Sensitivity to precipitation events (critical for safety halts)"
+    },
+    "heatwave_conditions": {
+      "samples": 440,
+      "accuracy": 0.7182,
+      "brier_score": 0.1765,
+      "notes": "Tmax >= 38C days (western dry belt & central basin summer)"
+    },
+    "ordinary_conditions": {
+      "samples": 7841,
+      "accuracy": 0.8944,
+      "brier_score": 0.0608,
+      "notes": "Clear/cloudy non-rain days"
+    }
+  },
+  "regional_zone_performance": {
+    "Coastal Zone": {
+      "samples": 2548,
+      "roc_auc": 0.8493,
+      "f1_score": 0.7412,
+      "brier_score": 0.1128
+    },
+    "Western Dry Belt": {
+      "samples": 3640,
+      "roc_auc": 0.8581,
+      "f1_score": 0.5774,
+      "brier_score": 0.1153
+    },
+    "Highland Eastern Ghats": {
+      "samples": 1820,
+      "roc_auc": 0.8017,
+      "f1_score": 0.5941,
+      "brier_score": 0.1552
+    },
+    "Central & North Plains": {
+      "samples": 2184,
+      "roc_auc": 0.8258,
+      "f1_score": 0.5617,
+      "brier_score": 0.1314
+    }
+  },
+  "calibration_curve": {
+    "predicted_probabilities": [
+      0.0447,
+      0.1367,
+      0.2478,
+      0.3422,
+      0.4547,
+      0.566,
+      0.6296,
+      0.7435,
+      0.8499,
+      0.9364
+    ],
+    "empirical_probabilities": [
+      0.0433,
+      0.1381,
+      0.2484,
+      0.3488,
+      0.4361,
+      0.5592,
+      0.6086,
+      0.8252,
+      0.9062,
+      0.983
+    ]
+  },
+  "scientific_disclaimer": "The model provides calibrated precipitation probability based on meteorological covariates. It does not guarantee safety or absolute forecast accuracy. Official warnings from IMD and local disaster management authorities supersede ML probability estimates."
+}
