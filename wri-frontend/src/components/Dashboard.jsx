@@ -219,7 +219,24 @@ export default function Dashboard() {
     setErrorMsg(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        fetchData({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        let nearestDist = null;
+        let minDist = Infinity;
+        if (districts && districts.length > 0) {
+          for (const d of districts) {
+            const dist = Math.hypot((d.lat - lat) * 111, (d.lon - lon) * 111 * Math.cos(lat * Math.PI / 180));
+            if (dist < minDist) {
+              minDist = dist;
+              nearestDist = d.name;
+            }
+          }
+        }
+        fetchData({ 
+          latitude: lat, 
+          longitude: lon, 
+          district: nearestDist || selectedDistrict || 'Khurda (Bhubaneswar)'
+        });
       },
       (err) => {
         setIsGpsLoading(false);
