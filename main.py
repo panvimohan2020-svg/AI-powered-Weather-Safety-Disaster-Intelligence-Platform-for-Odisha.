@@ -321,6 +321,7 @@ async def predict_wri(req: PredictionRequest):
     is_outside_odisha = False
     distance_to_odisha_km = 0.0
 
+    dist_info = None
     if resolved_district_name:
         dist_info = get_district_by_name(resolved_district_name)
         if dist_info:
@@ -348,6 +349,8 @@ async def predict_wri(req: PredictionRequest):
             resolved_district_name = nearest_name
         else:
             resolved_district_name = nearest_name
+
+        dist_info = get_district_by_name(resolved_district_name)
 
     # 2. Isolated Location Cache (keyed strictly by district and 15-minute slot)
     now_ts = time.time()
