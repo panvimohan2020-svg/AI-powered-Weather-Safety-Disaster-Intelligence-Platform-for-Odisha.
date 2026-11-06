@@ -13,6 +13,7 @@ import {
 export default function TopNavigation({
   districts = [],
   selectedDistrict = 'Rayagada',
+  locality = null,
   onSelectDistrict = () => {},
   onGpsClick = () => {},
   isGpsLoading = false,
@@ -122,6 +123,17 @@ export default function TopNavigation({
                 )}
               </button>
             </div>
+
+            {/* Detected Locality / Town Badge (e.g., Gunupur) */}
+            {locality && locality !== selectedDistrict && (
+              <div 
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-950/70 border border-blue-500/40 text-blue-300 text-xs font-bold animate-fade-in"
+                title={`Exact sub-division / locality: ${locality} (${selectedDistrict} District)`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+                <span>{locality}</span>
+              </div>
+            )}
 
             {/* Animation Toggle Pill (Desktop) */}
             <button

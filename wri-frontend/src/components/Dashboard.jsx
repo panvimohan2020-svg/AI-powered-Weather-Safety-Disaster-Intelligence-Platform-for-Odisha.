@@ -221,28 +221,15 @@ export default function Dashboard() {
       (pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
-        let nearestDist = null;
-        let minDist = Infinity;
-        if (districts && districts.length > 0) {
-          for (const d of districts) {
-            const dist = Math.hypot((d.lat - lat) * 111, (d.lon - lon) * 111 * Math.cos(lat * Math.PI / 180));
-            if (dist < minDist) {
-              minDist = dist;
-              nearestDist = d.name;
-            }
-          }
-        }
-        fetchData({ 
-          latitude: lat, 
-          longitude: lon, 
-          district: nearestDist || selectedDistrict || 'Khurda (Bhubaneswar)'
-        });
+        // Do not force district from client: let backend multi-tier geocoder
+        // with Gunupur / sub-division index accurately map to Rayagada & Gunupur locality!
+        fetchData({ latitude: lat, longitude: lon });
       },
       (err) => {
         setIsGpsLoading(false);
         setErrorMsg('Location permission denied or timed out. Please choose a district from the dropdown.');
       },
-      { timeout: 10000, enableHighAccuracy: false }
+      { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 }
     );
   };
 
@@ -333,6 +320,7 @@ export default function Dashboard() {
       <TopNavigation
         districts={districts}
         selectedDistrict={selectedDistrict}
+        locality={wriData?.locality}
         onSelectDistrict={handleDistrictChange}
         onGpsClick={handleGpsClick}
         isGpsLoading={isGpsLoading}
