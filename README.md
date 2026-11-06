@@ -1,7 +1,9 @@
 # 🌦️ Odisha WRI: Workability Risk Index & District Weather Safety Intelligence
 
-[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-black?logo=vercel&logoColor=white)](https://ai-powered-weather-safety-disaster.vercel.app)
+[![API Status](https://img.shields.io/badge/API_Status-Render_Healthy-46E3B7?logo=render&logoColor=black)](https://odisha-wri-backend.onrender.com/health)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-6.0+-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -9,6 +11,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Coverage](https://img.shields.io/badge/Coverage-30_Odisha_Districts-emerald)]()
 [![Tests](https://img.shields.io/badge/Tests-35_Passing-brightgreen)]()
+
+> 🌐 **Live Web Application**: [https://ai-powered-weather-safety-disaster.vercel.app](https://ai-powered-weather-safety-disaster.vercel.app)  
+> ⚡ **Production REST API**: [https://odisha-wri-backend.onrender.com](https://odisha-wri-backend.onrender.com)  
+> 🏥 **API Health Check**: [https://odisha-wri-backend.onrender.com/health](https://odisha-wri-backend.onrender.com/health)
 
 > **A scientifically grounded, multi-hazard occupational weather safety and disaster intelligence platform covering all 30 districts of Odisha, India.**
 
