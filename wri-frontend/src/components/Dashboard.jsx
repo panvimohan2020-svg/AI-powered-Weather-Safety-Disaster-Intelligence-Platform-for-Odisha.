@@ -110,10 +110,12 @@ export default function Dashboard() {
   const [pushStatus, setPushStatus] = useState('checking'); // 'supported' | 'subscribed' | 'unsupported' | 'denied'
   const [lastUpdatedTime, setLastUpdatedTime] = useState('Just now');
 
-  // Backend API Base Resolver
-  const API_BASE = (typeof window !== 'undefined' && window.location.port === '5173') 
-    ? 'http://127.0.0.1:8000' 
-    : '';
+  // Backend API Base Resolver (Supports Vercel production environment variable)
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || (
+    (typeof window !== 'undefined' && (window.location.port === '5173' || window.location.port === '3000')) 
+      ? 'http://127.0.0.1:8000' 
+      : ''
+  );
 
   // Initial Data Load
   useEffect(() => {
