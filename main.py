@@ -668,10 +668,11 @@ async def predict_wri(req: PredictionRequest):
         is_daytime=is_daytime
     )
 
-    now_iso = datetime.now().astimezone().isoformat()
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(ist_tz)
+    now_iso = now_ist.isoformat()
 
     # 9. 24-Hour Hourly Weather & Workability Forecast
-    hourly_timeline = []
     hourly_times = hourly.get("time", [])
     hourly_temps = hourly.get("temperature_2m", [])
     hourly_rhs = hourly.get("relative_humidity_2m", [])
@@ -682,40 +683,41 @@ async def predict_wri(req: PredictionRequest):
     hourly_gusts = hourly.get("wind_gusts_10m", [])
     hourly_uvs = hourly.get("uv_index", [])
 
-    # Find index closest to current hour
-    current_hour_iso = now_iso[:13] # YYYY-MM-DDTHH
-    start_idx = 0
+    # Find index closest to current hour in Indian Standard Time (IST)
+    current_hour_iso = now_ist.strftime("%Y-%m-%dT%H")
+    start_idx = -1
     for idx, t_str in enumerate(hourly_times):
         if t_str.startswith(current_hour_iso):
             start_idx = idx
             break
 
-    favorable_hours = []
-    unfavorable_hours = []
+    if start_idx == -1:
+        for idx, t_str in enumerate(hourly_times):
+            if t_str >= current_hour_iso:
+                start_idx = idx
+                break
 
-    for h_offset in range(24):
-        target_idx = start_idx + h_offset
-        if target_idx >= len(hourly_times):
-            break
+    if start_idx == -1:
+        start_idx = 0
 
-        h_time_str = hourly_times[target_idx]
-        h_temp = float(hourly_temps[target_idx]) if target_idx < len(hourly_temps) else current_temp
-        h_rh = float(hourly_rhs[target_idx]) if target_idx < len(hourly_rhs) else rh2m
-        h_rain_prob = (float(hourly_rain_probs[target_idx]) / 100.0) if target_idx < len(hourly_rain_probs) else rain_prob
-        h_precip = float(hourly_precips[target_idx]) if target_idx < len(hourly_precips) else 0.0
-        h_wcode = int(hourly_wcodes[target_idx]) if target_idx < len(hourly_wcodes) else weather_code
-        h_wind = float(hourly_winds[target_idx]) if target_idx < len(hourly_winds) else ws10m
-        h_gust = float(hourly_gusts[target_idx]) if target_idx < len(hourly_gusts) else wg10m
-        h_uv = float(hourly_uvs[target_idx]) if target_idx < len(hourly_uvs) else 0.0
+    full_timeline = []
+    for idx, h_time_str in enumerate(hourly_times):
+        h_temp = float(hourly_temps[idx]) if idx < len(hourly_temps) else current_temp
+        h_rh = float(hourly_rhs[idx]) if idx < len(hourly_rhs) else rh2m
+        h_rain_prob = (float(hourly_rain_probs[idx]) / 100.0) if idx < len(hourly_rain_probs) else rain_prob
+        h_precip = float(hourly_precips[idx]) if idx < len(hourly_precips) else 0.0
+        h_wcode = int(hourly_wcodes[idx]) if idx < len(hourly_wcodes) else weather_code
+        h_wind = float(hourly_winds[idx]) if idx < len(hourly_winds) else ws10m
+        h_gust = float(hourly_gusts[idx]) if idx < len(hourly_gusts) else wg10m
+        h_uv = float(hourly_uvs[idx]) if idx < len(hourly_uvs) else 0.0
 
-        # Hourly daylight check (approx 6 AM to 6 PM)
         try:
             h_dt = datetime.fromisoformat(h_time_str)
             h_is_day = 6 <= h_dt.hour < 18
-            hour_label = h_dt.strftime("%I %p")
+            hour_label = h_dt.strftime("%I:%M %p")
         except Exception:
             h_is_day = True
-            hour_label = f"+{h_offset}h"
+            hour_label = f"H+{idx}"
 
         h_score_res = calculate_wri(
             rain_prob=h_rain_prob,
@@ -732,14 +734,9 @@ async def predict_wri(req: PredictionRequest):
         )
 
         h_score = h_score_res["safety_score"]
-        if h_score >= 8.0:
-            favorable_hours.append(hour_label)
-        elif h_score <= 5.0:
-            unfavorable_hours.append(hour_label)
-
         h_meta = WMO_WEATHER_CODES.get(h_wcode, {"condition": "Cloudy", "icon": "cloud"})
 
-        hourly_timeline.append({
+        full_timeline.append({
             "time_iso": h_time_str,
             "hour_label": hour_label,
             "temperature_c": round(h_temp, 1),
@@ -748,6 +745,7 @@ async def predict_wri(req: PredictionRequest):
             "rain_percentage": f"{int(round(h_rain_prob * 100))}%",
             "precipitation_mm": round(h_precip, 2),
             "wind_speed_kmh": round(h_wind, 1),
+            "wind_gusts_kmh": round(h_gust, 1),
             "uv_index": round(h_uv, 1),
             "safety_score": h_score,
             "risk_zone": h_score_res["zone"],
@@ -755,6 +753,37 @@ async def predict_wri(req: PredictionRequest):
             "icon": h_meta["icon"],
             "is_daytime": h_is_day
         })
+
+    # The 24 hours starting from current IST hour
+    hourly_timeline = full_timeline[start_idx:start_idx + 24]
+    if len(hourly_timeline) < 24 and full_timeline:
+        hourly_timeline = full_timeline[-24:] if len(full_timeline) >= 24 else full_timeline
+
+    # Absolute fallback: ensure hourly_timeline is never empty
+    if not hourly_timeline:
+        for h_offset in range(24):
+            sim_dt = now_ist + timedelta(hours=h_offset)
+            sim_iso = sim_dt.strftime("%Y-%m-%dT%H:00")
+            hourly_timeline.append({
+                "time_iso": sim_iso,
+                "hour_label": sim_dt.strftime("%I:%M %p"),
+                "temperature_c": round(current_temp, 1),
+                "humidity_percent": int(round(rh2m)),
+                "rain_probability": round(rain_prob, 2),
+                "rain_percentage": f"{int(round(rain_prob * 100))}%",
+                "precipitation_mm": 0.0,
+                "wind_speed_kmh": round(ws10m, 1),
+                "wind_gusts_kmh": round(wg10m, 1),
+                "uv_index": 5.0 if 6 <= sim_dt.hour <= 18 else 0.0,
+                "safety_score": safety_result["safety_score"],
+                "risk_zone": safety_result["zone"],
+                "condition": "Mainly Clear",
+                "icon": "sun" if 6 <= sim_dt.hour <= 18 else "moon",
+                "is_daytime": 6 <= sim_dt.hour <= 18
+            })
+
+    favorable_hours = [h["hour_label"] for h in hourly_timeline if h["safety_score"] >= 8.0]
+    unfavorable_hours = [h["hour_label"] for h in hourly_timeline if h["safety_score"] <= 5.0]
 
     # Summary insight for forecast
     if favorable_hours and unfavorable_hours:
