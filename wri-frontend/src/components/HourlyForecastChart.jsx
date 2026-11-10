@@ -7,7 +7,13 @@ import {
 export default function HourlyForecastChart({ hourlyData, isDay, cardBg, subText, headingText }) {
   const [activeHourIndex, setActiveHourIndex] = useState(0);
 
-  if (!hourlyData || !hourlyData.timeline || hourlyData.timeline.length === 0) {
+  const timeline = Array.isArray(hourlyData) 
+    ? hourlyData 
+    : (hourlyData?.timeline || []);
+  const forecastInsight = hourlyData?.forecast_insight || hourlyData?.hourly_forecast_insight;
+  const issuedAt = hourlyData?.issued_at;
+
+  if (!timeline || timeline.length === 0) {
     return (
       <div className="p-4 rounded-2xl bg-black/10 text-center text-xs text-slate-400">
         24-hour forecast timeline currently unavailable.
@@ -15,7 +21,6 @@ export default function HourlyForecastChart({ hourlyData, isDay, cardBg, subText
     );
   }
 
-  const timeline = hourlyData.timeline;
   const activeHour = timeline[activeHourIndex] || timeline[0];
 
   const getConditionIcon = (iconName, isDaytime) => {
@@ -47,15 +52,15 @@ export default function HourlyForecastChart({ hourlyData, isDay, cardBg, subText
               Next 24 Hours
             </span>
           </div>
-          {hourlyData.forecast_insight && (
+          {forecastInsight && (
             <p className="text-xs text-blue-400 font-semibold mt-1">
-              💡 {hourlyData.forecast_insight}
+              💡 {forecastInsight}
             </p>
           )}
         </div>
 
         <span className={`text-[0.65rem] font-mono ${subText}`}>
-          Issued: {new Date(hourlyData.issued_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          Issued: {issuedAt ? new Date(issuedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live (IST)'}
         </span>
       </div>
 

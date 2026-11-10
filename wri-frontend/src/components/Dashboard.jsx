@@ -650,7 +650,7 @@ export default function Dashboard() {
 
             {/* Hourly Forecast Component */}
             <HourlyForecastChart 
-              hourlyData={wriData.hourly_timeline || []}
+              hourlyData={wriData.hourly_forecast || { timeline: wriData.hourly_timeline || [], forecast_insight: wriData.hourly_forecast_insight }}
               favorableWindow={wriData.hourly_forecast_insight}
             />
 
@@ -703,6 +703,8 @@ export default function Dashboard() {
 
             <WorkPlanner
               district={wriData.district}
+              locality={wriData.locality}
+              coordinates={wriData.coordinates}
               apiBase={API_BASE}
               isDay={false}
               cardBg="bg-slate-900/80 border border-slate-700/60 backdrop-blur-md"

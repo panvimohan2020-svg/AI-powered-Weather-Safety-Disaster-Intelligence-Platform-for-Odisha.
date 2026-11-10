@@ -979,11 +979,14 @@ async def predict_wri(req: PredictionRequest):
         "persona_advisories": safety_result["persona_advisories"],
         "official_alerts": official_alerts,
         "hourly_forecast": {
-            "horizon_hours": 24,
+            "horizon_hours": len(hourly_timeline),
             "issued_at": now_iso,
             "timeline": hourly_timeline,
+            "full_timeline": full_timeline,
             "forecast_insight": forecast_insight
         },
+        "hourly_timeline": hourly_timeline,
+        "hourly_forecast_insight": forecast_insight,
         # Backward compatibility for legacy clients & bot
         "wri": {
             "wri_score": safety_result["safety_score"],
@@ -1024,43 +1027,103 @@ async def plan_outdoor_work(plan_req: WorkPlanRequest):
     Personalized Safe-Work Planning Engine.
     Analyzes forecast conditions across intended shift hours for specific worker personas.
     """
-    # 1. Fetch district prediction & 24h timeline
-    predict_payload = await predict_wri(PredictionRequest(district=plan_req.district))
-    hourly_timeline = predict_payload.get("hourly_forecast", {}).get("timeline", [])
+    # 1. Fetch prediction with district and optional GPS locality / coordinates
+    predict_payload = await predict_wri(PredictionRequest(
+        district=plan_req.district,
+        latitude=plan_req.latitude,
+        longitude=plan_req.longitude,
+        locality=plan_req.locality
+    ))
 
-    if not hourly_timeline:
+    hourly_forecast_obj = predict_payload.get("hourly_forecast", {})
+    full_timeline = hourly_forecast_obj.get("full_timeline") or hourly_forecast_obj.get("timeline") or []
+    if not full_timeline:
+        full_timeline = predict_payload.get("hourly_timeline", [])
+
+    if not full_timeline:
         raise HTTPException(status_code=500, detail="Hourly forecast timeline unavailable.")
 
-    # 2. Extract shift window hours
-    shift_hours = []
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(ist_tz)
+
+    # 2. Determine target shift date (today vs tomorrow)
+    req_date_mode = (plan_req.shift_date or "today").strip().lower()
+    if req_date_mode == "tomorrow":
+        target_date = now_ist.date() + timedelta(days=1)
+        shift_date_label = "Tomorrow"
+    else:
+        target_date = now_ist.date()
+        shift_date_label = "Today"
+
     start_hour = plan_req.shift_start_hour
     duration = plan_req.duration_hours
 
-    for h in hourly_timeline:
+    # 3. Extract shift window hours for target date
+    shift_hours = []
+    for h in full_timeline:
         try:
             dt = datetime.fromisoformat(h["time_iso"])
-            # Match hours in window
-            hour_diff = (dt.hour - start_hour) % 24
-            if 0 <= hour_diff < duration:
-                shift_hours.append(h)
+            if dt.date() == target_date:
+                hour_diff = dt.hour - start_hour
+                if 0 <= hour_diff < duration:
+                    shift_hours.append(h)
         except Exception:
             continue
 
+    # Fallback if date-specific matching was empty (e.g. boundary wrap)
     if not shift_hours:
-        shift_hours = hourly_timeline[:duration]
+        for h in full_timeline:
+            try:
+                dt = datetime.fromisoformat(h["time_iso"])
+                hour_diff = (dt.hour - start_hour) % 24
+                if 0 <= hour_diff < duration:
+                    shift_hours.append(h)
+                if len(shift_hours) == duration:
+                    break
+            except Exception:
+                continue
 
-    # 3. Analyze Shift Feasibility
+    if not shift_hours:
+        shift_hours = full_timeline[:duration]
+
+    # Ensure chronological order
+    shift_hours = sorted(shift_hours, key=lambda x: x["time_iso"])
+
+    # 4. Determine shift timing status: PAST, IN PROGRESS, or UPCOMING
+    is_past_shift = False
+    past_shift_message = None
+    shift_end_hour = start_hour + duration
+
+    if target_date == now_ist.date():
+        if now_ist.hour >= shift_end_hour:
+            is_past_shift = True
+            past_shift_message = (
+                f"The {start_hour:02d}:00 to {shift_end_hour:02d}:00 shift for today has already passed. "
+                "Displaying meteorological log for this timeframe. Select 'Tomorrow' above to evaluate upcoming shifts."
+            )
+            shift_status = "PAST"
+        elif start_hour <= now_ist.hour < shift_end_hour:
+            shift_status = "IN PROGRESS"
+        else:
+            shift_status = "UPCOMING"
+    elif target_date > now_ist.date():
+        shift_status = "UPCOMING"
+    else:
+        is_past_shift = True
+        shift_status = "PAST"
+
+    # 5. Analyze Shift Feasibility Metrics
     scores = [h["safety_score"] for h in shift_hours]
     temps = [h["temperature_c"] for h in shift_hours]
     rain_probs = [h["rain_probability"] for h in shift_hours]
     winds = [h["wind_speed_kmh"] for h in shift_hours]
 
-    avg_score = round(sum(scores) / len(scores), 1)
-    min_score = min(scores)
-    max_score = max(scores)
-    max_temp = max(temps)
-    max_rain_prob = max(rain_probs)
-    max_wind = max(winds)
+    avg_score = round(sum(scores) / len(scores), 1) if scores else 8.0
+    min_score = min(scores) if scores else 8.0
+    max_score = max(scores) if scores else 8.0
+    max_temp = max(temps) if temps else round(predict_payload.get("weather", {}).get("temperature_c", 30.0), 1)
+    max_rain_prob = max(rain_probs) if rain_probs else 0.0
+    max_wind = max(winds) if winds else 10.0
 
     # Optimal sub-windows
     best_hours = [h["hour_label"] for h in shift_hours if h["safety_score"] >= 7.5]
@@ -1114,13 +1177,24 @@ async def plan_outdoor_work(plan_req: WorkPlanRequest):
         f"{occ_guidelines.get('hydration_instruction', 'Maintain regular fluid intake.')}"
     )
 
+    resolved_dist = predict_payload.get("district", plan_req.district)
+    locality_name = predict_payload.get("locality") or plan_req.locality
+
     return {
-        "district": plan_req.district,
+        "district": resolved_dist,
+        "locality": locality_name,
+        "coordinates": predict_payload.get("coordinates"),
         "activity": plan_req.activity,
+        "shift_date": target_date.strftime("%Y-%m-%d"),
+        "shift_date_label": shift_date_label,
         "shift_start": f"{start_hour:02d}:00",
+        "shift_end": f"{(start_hour + duration) % 24:02d}:00",
         "duration_hours": duration,
         "shift_feasibility": feasibility,
         "feasibility_color": feasibility_color,
+        "shift_status": shift_status,
+        "is_past_shift": is_past_shift,
+        "past_shift_message": past_shift_message,
         "summary": summary,
         "metrics": {
             "average_safety_score": avg_score,
