@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react';
-import { Sparkles, Sun, CloudRain, CloudLightning, Snowflake, Wind, Cloud, Eye, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import React, { useEffect, useRef, useMemo } from 'react';
 
 /**
  * Beautiful, Dynamic Weather-Responsive Atmospheric Background Engine
@@ -17,7 +16,6 @@ import { Sparkles, Sun, CloudRain, CloudLightning, Snowflake, Wind, Cloud, Eye, 
  * - Layer Isolation: Strictly background (-z-10, pointer-events-none). Zero interference with UI.
  * - Text Contrast Preservation: Deep atmospheric gradient base + contrast radial vignette (WCAG AAA).
  * - Accessibility & Performance: Respects prefers-reduced-motion, pauses when tab is hidden.
- * - Interactive Mode Previewer: Collapsible control allowing instant inspection of all 7 weather modes.
  */
 export default function WeatherBackground({ 
   weatherCode = 0, 
@@ -28,17 +26,12 @@ export default function WeatherBackground({
   conditionGroup = '',
   humidity = 60,
   sunriseIso = null,
-  sunsetIso = null,
-  animationsEnabled = true 
+  sunsetIso = null
 }) {
   const canvasRef = useRef(null);
-  const [manualMode, setManualMode] = useState(null); // null = Auto (Live Telemetry)
-  const [isTesterOpen, setIsTesterOpen] = useState(false);
 
   // Automatically resolve the atmospheric mode from live weather telemetry
   const weatherMode = useMemo(() => {
-    if (manualMode) return manualMode;
-
     const code = Number(weatherCode);
     const cond = (condition || '').toLowerCase();
     const group = (conditionGroup || '').toLowerCase();
@@ -129,11 +122,10 @@ export default function WeatherBackground({
 
     // 8. Default Sunny Day or Celestial Night
     return isDaytime ? 'sunny' : 'night';
-  }, [manualMode, weatherCode, isDaytime, temperature, windSpeed, condition, conditionGroup, sunriseIso, sunsetIso]);
+  }, [weatherCode, isDaytime, temperature, windSpeed, condition, conditionGroup, sunriseIso, sunsetIso]);
 
   // High-Performance Multi-Particle Canvas Engine
   useEffect(() => {
-    if (!animationsEnabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -532,7 +524,7 @@ export default function WeatherBackground({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [weatherMode, animationsEnabled]);
+  }, [weatherMode]);
 
   // High-Fidelity Atmospheric Base Gradients
   const getAtmosphericGradient = () => {
@@ -563,182 +555,102 @@ export default function WeatherBackground({
     }
   };
 
-  const previewModes = [
-    { id: null, label: 'Auto (Live Telemetry)', icon: Sparkles },
-    { id: 'sunny', label: '☀️ Sunny / Clear', icon: Sun },
-    { id: 'rain', label: '🌧️ Rainy', icon: CloudRain },
-    { id: 'thunderstorm', label: '⛈️ Thunderstorm', icon: CloudLightning },
-    { id: 'snow', label: '❄️ Cold / Snow', icon: Snowflake },
-    { id: 'windy', label: '💨 Windy', icon: Wind },
-    { id: 'fog', label: '🌫️ Foggy', icon: Cloud },
-    { id: 'cloudy', label: '☁️ Cloudy', icon: Cloud },
-    { id: 'night', label: '🌙 Clear Night', icon: Sparkles }
-  ];
-
   return (
-    <>
-      {/* ============================================================== */}
-      {/* 1. FIXED BACKGROUND CONTAINER (strictly -z-10, pointer-events-none) */}
-      {/* ============================================================== */}
-      <div 
-        className="fixed inset-0 pointer-events-none -z-10 overflow-hidden transition-colors duration-1000"
-        aria-hidden="true"
-      >
-        {/* Sky Atmospheric Gradient Base */}
-        <div className={`absolute inset-0 bg-gradient-to-b ${getAtmosphericGradient()} transition-all duration-1000`} />
+    <div 
+      className="fixed inset-0 pointer-events-none -z-10 overflow-hidden transition-colors duration-1000"
+      aria-hidden="true"
+    >
+      {/* Sky Atmospheric Gradient Base */}
+      <div className={`absolute inset-0 bg-gradient-to-b ${getAtmosphericGradient()} transition-all duration-1000`} />
 
-        {/* Decorative Atmospheric Layers */}
-        {animationsEnabled && (
-          <>
-            {/* ☀️ SUNNY: Rotating Sun Rays & Warm Radial Corona */}
-            {(weatherMode === 'sunny' || weatherMode === 'twilight') && (
-              <div className="absolute -top-24 -right-24 w-[32rem] h-[32rem] pointer-events-none select-none">
-                {/* Outer Glow Corona */}
-                <div 
-                  className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-400/25 via-yellow-400/15 to-transparent blur-3xl"
-                  style={{ animation: 'sunCoronaPulse 8s ease-in-out infinite' }}
-                />
-                
-                {/* SVG Rotating Light Rays */}
-                <svg 
-                  className="w-full h-full opacity-35"
-                  style={{ animation: 'sunRaySpin 120s linear infinite' }}
-                  viewBox="0 0 200 200"
-                >
-                  <circle cx="100" cy="100" r="30" fill="rgba(253, 224, 71, 0.4)" />
-                  {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => (
-                    <line 
-                      key={deg} 
-                      x1="100" y1="100" 
-                      x2={100 + 95 * Math.cos(deg * Math.PI / 180)} 
-                      y2={100 + 95 * Math.sin(deg * Math.PI / 180)} 
-                      stroke="rgba(253, 230, 138, 0.25)" 
-                      strokeWidth="2.5" 
-                      strokeDasharray="12,12" 
-                    />
-                  ))}
-                </svg>
-              </div>
-            )}
-
-            {/* 🌙 NIGHT: Crescent Lunar Glow Aura */}
-            {weatherMode === 'night' && (
-              <div className="absolute top-10 right-14 w-28 h-28 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none select-none">
-                <div className="w-16 h-16 rounded-full border-t-[3px] border-l-[3px] border-slate-100/70 shadow-[0_0_30px_rgba(255,255,255,0.45)] ml-4 mt-4" />
-              </div>
-            )}
-
-            {/* ☁️ CLOUDY: Multi-layered soft drifting cumulus clouds */}
-            {['cloudy', 'cloudy_night', 'rain', 'heavy_rain', 'thunderstorm'].includes(weatherMode) && (
-              <>
-                <div 
-                  className="absolute top-6 -left-36 w-[34rem] h-48 bg-slate-400/10 rounded-full blur-3xl pointer-events-none"
-                  style={{ animation: 'cloudDriftSlow 65s linear infinite' }}
-                />
-                <div 
-                  className="absolute top-20 -right-44 w-[38rem] h-56 bg-slate-500/12 rounded-full blur-3xl pointer-events-none"
-                  style={{ animation: 'cloudDriftMedium 80s linear infinite' }}
-                />
-              </>
-            )}
-
-            {/* 🌫️ FOGGY: Layered rolling mist sheets */}
-            {weatherMode === 'fog' && (
-              <>
-                <div 
-                  className="absolute top-1/4 left-0 right-0 h-72 bg-gradient-to-r from-slate-400/10 via-slate-300/18 to-slate-400/10 blur-3xl pointer-events-none"
-                  style={{ animation: 'fogBankDrift1 30s ease-in-out infinite alternate' }}
-                />
-                <div 
-                  className="absolute bottom-1/4 left-0 right-0 h-80 bg-gradient-to-r from-slate-300/15 via-slate-400/22 to-slate-300/15 blur-3xl pointer-events-none"
-                  style={{ animation: 'fogBankDrift2 38s ease-in-out infinite alternate' }}
-                />
-              </>
-            )}
-
-            {/* 💨 WINDY: Sweeping atmospheric air currents */}
-            {weatherMode === 'windy' && (
-              <div 
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/5 to-transparent blur-2xl pointer-events-none"
-                style={{ animation: 'windSwoosh 18s ease-in-out infinite' }}
-              />
-            )}
-
-            {/* ❄️ SNOW / COLD: Frost atmospheric glimmer */}
-            {weatherMode === 'snow' && (
-              <div 
-                className="absolute inset-0 bg-radial-gradient from-cyan-400/5 to-transparent pointer-events-none"
-                style={{ animation: 'frostShimmer 6s ease-in-out infinite' }}
-              />
-            )}
-
-            {/* Dynamic Multi-Particle Canvas Engine */}
-            <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full pointer-events-none" />
-          </>
-        )}
-
-        {/* Contrast Preservation Vignette (ensures text readability across light & dark themes) */}
-        <div className="absolute inset-0 bg-radial-vignette opacity-50 pointer-events-none" />
-      </div>
-
-      {/* ============================================================== */}
-      {/* 2. DISCREET ATMOSPHERIC MODE PREVIEWER & TEST CONTROLLER       */}
-      {/* ============================================================== */}
-      <div className="fixed bottom-4 left-4 z-30 pointer-events-auto">
-        {!isTesterOpen ? (
-          <button
-            onClick={() => setIsTesterOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800/90 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700/70 shadow-lg backdrop-blur-md cursor-pointer transition-all active:scale-95 group"
-            title="Inspect / Test Weather Background Animations"
+      {/* Decorative Atmospheric Layers */}
+      {/* ☀️ SUNNY: Rotating Sun Rays & Warm Radial Corona */}
+      {(weatherMode === 'sunny' || weatherMode === 'twilight') && (
+        <div className="absolute -top-24 -right-24 w-[32rem] h-[32rem] pointer-events-none select-none">
+          {/* Outer Glow Corona */}
+          <div 
+            className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-400/25 via-yellow-400/15 to-transparent blur-3xl"
+            style={{ animation: 'sunCoronaPulse 8s ease-in-out infinite' }}
+          />
+          
+          {/* SVG Rotating Light Rays */}
+          <svg 
+            className="w-full h-full opacity-35"
+            style={{ animation: 'sunRaySpin 120s linear infinite' }}
+            viewBox="0 0 200 200"
           >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-45 transition-transform" />
-            <span className="hidden sm:inline">Theme:</span>
-            <span className="text-cyan-300 font-bold capitalize">
-              {manualMode ? manualMode.replace('_', ' ') : `Live (${weatherMode.replace('_', ' ')})`}
-            </span>
-            <ChevronUp className="w-3 h-3 text-slate-400 ml-0.5" />
-          </button>
-        ) : (
-          <div className="bg-slate-900/95 border border-slate-700/90 rounded-2xl p-3 shadow-2xl backdrop-blur-xl max-w-xs text-xs animate-slide-up flex flex-col gap-2">
-            <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
-              <span className="font-black text-white flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                Weather Background Preview
-              </span>
-              <button
-                onClick={() => setIsTesterOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
+            <circle cx="100" cy="100" r="30" fill="rgba(253, 224, 71, 0.4)" />
+            {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => (
+              <line 
+                key={deg} 
+                x1="100" y1="100" 
+                x2={100 + 95 * Math.cos(deg * Math.PI / 180)} 
+                y2={100 + 95 * Math.sin(deg * Math.PI / 180)} 
+                stroke="rgba(253, 230, 138, 0.25)" 
+                strokeWidth="2.5" 
+                strokeDasharray="12,12" 
+              />
+            ))}
+          </svg>
+        </div>
+      )}
 
-            <p className="text-[0.68rem] text-slate-400 leading-snug">
-              Preview each of the 7 dynamic atmospheric animations in real time. Default is live meteorological telemetry.
-            </p>
+      {/* 🌙 NIGHT: Crescent Lunar Glow Aura */}
+      {weatherMode === 'night' && (
+        <div className="absolute top-10 right-14 w-28 h-28 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none select-none">
+          <div className="w-16 h-16 rounded-full border-t-[3px] border-l-[3px] border-slate-100/70 shadow-[0_0_30px_rgba(255,255,255,0.45)] ml-4 mt-4" />
+        </div>
+      )}
 
-            <div className="grid grid-cols-1 gap-1 max-h-56 overflow-y-auto pr-1">
-              {previewModes.map((m) => {
-                const isActive = manualMode === m.id;
-                return (
-                  <button
-                    key={String(m.id)}
-                    onClick={() => setManualMode(m.id)}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-sm' 
-                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                    }`}
-                  >
-                    <span className="truncate">{m.label}</span>
-                    {isActive && <Check className="w-3.5 h-3.5 text-white flex-shrink-0 ml-1" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </>
+      {/* ☁️ CLOUDY: Multi-layered soft drifting cumulus clouds */}
+      {['cloudy', 'cloudy_night', 'rain', 'heavy_rain', 'thunderstorm'].includes(weatherMode) && (
+        <>
+          <div 
+            className="absolute top-6 -left-36 w-[34rem] h-48 bg-slate-400/10 rounded-full blur-3xl pointer-events-none"
+            style={{ animation: 'cloudDriftSlow 65s linear infinite' }}
+          />
+          <div 
+            className="absolute top-20 -right-44 w-[38rem] h-56 bg-slate-500/12 rounded-full blur-3xl pointer-events-none"
+            style={{ animation: 'cloudDriftMedium 80s linear infinite' }}
+          />
+        </>
+      )}
+
+      {/* 🌫️ FOGGY: Layered rolling mist sheets */}
+      {weatherMode === 'fog' && (
+        <>
+          <div 
+            className="absolute top-1/4 left-0 right-0 h-72 bg-gradient-to-r from-slate-400/10 via-slate-300/18 to-slate-400/10 blur-3xl pointer-events-none"
+            style={{ animation: 'fogBankDrift1 30s ease-in-out infinite alternate' }}
+          />
+          <div 
+            className="absolute bottom-1/4 left-0 right-0 h-80 bg-gradient-to-r from-slate-300/15 via-slate-400/22 to-slate-300/15 blur-3xl pointer-events-none"
+            style={{ animation: 'fogBankDrift2 38s ease-in-out infinite alternate' }}
+          />
+        </>
+      )}
+
+      {/* 💨 WINDY: Sweeping atmospheric air currents */}
+      {weatherMode === 'windy' && (
+        <div 
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/5 to-transparent blur-2xl pointer-events-none"
+          style={{ animation: 'windSwoosh 18s ease-in-out infinite' }}
+        />
+      )}
+
+      {/* ❄️ SNOW / COLD: Frost atmospheric glimmer */}
+      {weatherMode === 'snow' && (
+        <div 
+          className="absolute inset-0 bg-radial-gradient from-cyan-400/5 to-transparent pointer-events-none"
+          style={{ animation: 'frostShimmer 6s ease-in-out infinite' }}
+        />
+      )}
+
+      {/* Dynamic Multi-Particle Canvas Engine */}
+      <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full pointer-events-none" />
+
+      {/* Contrast Preservation Vignette (ensures text readability across light & dark themes) */}
+      <div className="absolute inset-0 bg-radial-vignette opacity-50 pointer-events-none" />
+    </div>
   );
 }

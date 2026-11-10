@@ -82,15 +82,6 @@ export default function Dashboard() {
   // Navigation & View Mode
   const [activeTab, setActiveTab] = useState('home'); // 'home' | 'weather' | 'planner' | 'alerts' | 'floods' | 'shelters' | 'map' | 'research'
   const [selectedLang, setSelectedLang] = useState('en');
-  
-  // Atmospheric animations toggle (persisted)
-  const [animationsEnabled, setAnimationsEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('odisha_wri_animations');
-      return saved !== 'false';
-    }
-    return true;
-  });
 
   // Emergency modals & state
   const [showSosModal, setShowSosModal] = useState(false);
@@ -156,14 +147,6 @@ export default function Dashboard() {
       setPushStatus('supported');
     } catch (e) {
       setPushStatus('supported');
-    }
-  };
-
-  const handleToggleAnimations = () => {
-    const nextVal = !animationsEnabled;
-    setAnimationsEnabled(nextVal);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('odisha_wri_animations', String(nextVal));
     }
   };
 
@@ -342,7 +325,6 @@ export default function Dashboard() {
         humidity={wriData?.weather?.humidity_percent ?? 60}
         sunriseIso={wriData?.daily?.sunrise?.[0] ?? null}
         sunsetIso={wriData?.daily?.sunset?.[0] ?? null}
-        animationsEnabled={animationsEnabled}
       />
 
       {/* 2. Top Navigation Bar (Part 2.A & Part 7) */}
@@ -357,8 +339,6 @@ export default function Dashboard() {
         onTabChange={setActiveTab}
         alertCount={activeAlerts.length}
         onOpenSos={() => setShowSosModal(true)}
-        animationsEnabled={animationsEnabled}
-        onToggleAnimations={handleToggleAnimations}
         currentLang={selectedLang}
         onLangChange={setSelectedLang}
       />

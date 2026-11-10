@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   CloudRain, ShieldAlert, MapPin, Navigation, Loader2, 
-  Menu, X, Sparkles, Globe, Bell, PhoneCall, Home, 
+  Menu, X, Globe, Bell, PhoneCall, Home, 
   Calendar, Layers, Radio, Waves, Building2, Eye, Shield
 } from 'lucide-react';
 
@@ -21,8 +21,6 @@ export default function TopNavigation({
   onTabChange = () => {},
   alertCount = 0,
   onOpenSos = () => {},
-  animationsEnabled = true,
-  onToggleAnimations = () => {},
   currentLang = 'en',
   onLangChange = () => {}
 }) {
@@ -134,20 +132,6 @@ export default function TopNavigation({
               </div>
             )}
 
-            {/* Animation Toggle Pill (Desktop) */}
-            <button
-              onClick={onToggleAnimations}
-              className={`hidden md:flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                animationsEnabled 
-                  ? 'bg-blue-500/15 border-blue-500/30 text-blue-400' 
-                  : 'bg-slate-800 border-slate-700 text-slate-400'
-              }`}
-              title={animationsEnabled ? 'Atmospheric animations active (Click to disable)' : 'Animations paused'}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{animationsEnabled ? 'FX: ON' : 'FX: OFF'}</span>
-            </button>
-
             {/* Red Emergency SOS Button */}
             <button
               onClick={onOpenSos}
@@ -199,16 +183,6 @@ export default function TopNavigation({
                 )}
               </button>
             ))}
-
-            <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <button
-                onClick={onToggleAnimations}
-                className="flex items-center gap-1 text-slate-300 py-1"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                <span>Weather Animations: <strong>{animationsEnabled ? 'Enabled' : 'Disabled'}</strong></span>
-              </button>
-            </div>
           </div>
         )}
       </header>
