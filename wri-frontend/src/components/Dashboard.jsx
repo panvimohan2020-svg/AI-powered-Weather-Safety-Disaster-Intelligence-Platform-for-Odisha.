@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MapPin, Loader2, CloudRain, ThermometerSun, Wind, 
@@ -167,8 +167,24 @@ export default function Dashboard() {
     }
   };
 
-  const fetchData = async (payload) => {
-    setIsLoading(true);
+  // Request sequence tracker to drop out-of-order race responses
+  const requestSeqRef = useRef(0);
+
+  // Automatic 5-Minute Telemetry Refresh
+  useEffect(() => {
+    if (!selectedDistrict) return;
+    const refreshTimer = setInterval(() => {
+      fetchData({ district: selectedDistrict, refresh: true }, false);
+    }, 300000); // 5 minutes
+
+    return () => clearInterval(refreshTimer);
+  }, [selectedDistrict]);
+
+  const fetchData = async (payload, showSpinner = true) => {
+    const seq = ++requestSeqRef.current;
+    if (showSpinner) {
+      setIsLoading(true);
+    }
     setErrorMsg(null);
     try {
       const response = await fetch(`${API_BASE}/api/predict`, {
@@ -183,6 +199,11 @@ export default function Dashboard() {
       }
 
       const data = await response.json();
+      // Drop stale out-of-order responses to eliminate race conditions
+      if (seq !== requestSeqRef.current) {
+        return;
+      }
+
       setWriData(data);
       if (data.district) {
         setSelectedDistrict(data.district);
@@ -198,16 +219,20 @@ export default function Dashboard() {
         setShowEmergencyModal(true);
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to fetch meteorological safety prediction.');
+      if (seq === requestSeqRef.current) {
+        setErrorMsg(err.message || 'Failed to fetch meteorological safety prediction.');
+      }
     } finally {
-      setIsLoading(false);
-      setIsGpsLoading(false);
+      if (seq === requestSeqRef.current) {
+        setIsLoading(false);
+        setIsGpsLoading(false);
+      }
     }
   };
 
   const handleDistrictChange = (distName) => {
     setSelectedDistrict(distName);
-    fetchData({ district: distName });
+    fetchData({ district: distName, refresh: false }, true);
   };
 
   const handleGpsClick = () => {
@@ -374,6 +399,24 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Estimated Fallback Data Notification Banner */}
+        {wriData?.weather?.data_status === 'ESTIMATED' && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-md backdrop-blur-md">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span>
+                <strong>Climatological Estimate Mode:</strong> Live NWP satellite telemetry is temporarily congested. Displaying calibrated microclimate model estimates.
+              </span>
+            </div>
+            <button
+              onClick={() => fetchData({ district: selectedDistrict, refresh: true }, true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1 cursor-pointer flex-shrink-0 active:scale-95 transition-all"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Retry Live
+            </button>
+          </div>
+        )}
+
         {/* Error Notification */}
         {errorMsg && (
           <div className="p-4 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-300 text-sm font-semibold flex items-center justify-between gap-3 shadow-md">
@@ -431,7 +474,7 @@ export default function Dashboard() {
                         transparent_deductions: wriData.prediction?.transparent_deductions
                       }}
                       lastUpdated={lastUpdatedTime}
-                      onRefresh={() => fetchData({ district: selectedDistrict })}
+                      onRefresh={() => fetchData({ district: selectedDistrict, refresh: true }, true)}
                       isLoading={isLoading}
                     />
                   </div>
@@ -837,7 +880,9 @@ export default function Dashboard() {
                   handleDistrictChange(dist);
                   setActiveTab('home');
                 }}
-                isDay={false}
+                currentScore={wriData?.prediction?.safety_score}
+                currentZone={wriData?.prediction?.risk_zone}
+                isDay={wriData?.weather?.is_daytime ?? true}
                 cardBg="bg-slate-900"
                 subText="text-slate-400"
               />

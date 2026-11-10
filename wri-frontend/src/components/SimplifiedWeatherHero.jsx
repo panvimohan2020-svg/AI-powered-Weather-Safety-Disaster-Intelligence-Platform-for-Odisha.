@@ -39,7 +39,8 @@ export default function SimplifiedWeatherHero({
   const uvIndex = weather.uv_index != null ? Number(weather.uv_index).toFixed(1) : '5.0';
 
   const dataSource = weather.data_source || 'Open-Meteo High-Resolution NWP (ECMWF & GFS Seamless)';
-  const dataStatus = weather.data_status || 'LIVE';
+  const isLive = weather.is_live !== false && weather.data_status !== 'ESTIMATED';
+  const dataStatus = isLive ? 'LIVE' : 'ESTIMATED';
   const lastUpdatedIst = weather.last_updated_ist || lastUpdated;
   const deductions = weather.transparent_deductions || [];
 

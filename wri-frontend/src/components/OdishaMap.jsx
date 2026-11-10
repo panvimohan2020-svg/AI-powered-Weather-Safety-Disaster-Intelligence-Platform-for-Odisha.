@@ -220,7 +220,7 @@ export default function OdishaMap({ selectedDistrict, onSelectDistrict, currentS
                 <div className="text-[0.65rem] uppercase font-bold text-slate-400">Selected District</div>
                 <div className="font-black text-sm text-emerald-400">{selectedDistrict}</div>
                 <div className="text-[0.7rem] font-bold text-slate-300 mt-0.5">
-                  Live Safety Score: <span className="font-mono text-emerald-400">{currentScore ?? '8.0'}/10</span>
+                  Live Safety Score: <span className="font-mono text-emerald-400">{currentScore != null ? Number(currentScore).toFixed(1) : '--'}/10</span>
                 </div>
               </div>
             )}
