@@ -133,12 +133,17 @@ class PredictionRequest(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     district: Optional[str] = None
+    locality: Optional[str] = None
 
 class WorkPlanRequest(BaseModel):
     district: str
     activity: str = Field(default="general", description="farming | construction | daily_wage | general")
     shift_start_hour: int = Field(default=8, ge=0, le=23)
     duration_hours: int = Field(default=8, ge=1, le=16)
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    locality: Optional[str] = None
+    shift_date: Optional[str] = Field(default="today", description="today | tomorrow")
 
 def format_iso_time(iso_str: str) -> str:
     """Converts ISO 8601 string to friendly 12-hour format."""
@@ -319,6 +324,7 @@ async def predict_wri(req: PredictionRequest):
     target_lat = req.latitude
     target_lon = req.longitude
     resolved_district_name = req.district
+    detected_locality = getattr(req, "locality", None)
     is_outside_odisha = False
     distance_to_odisha_km = 0.0
 
@@ -326,9 +332,11 @@ async def predict_wri(req: PredictionRequest):
     if resolved_district_name:
         dist_info = get_district_by_name(resolved_district_name)
         if dist_info:
-            target_lat = dist_info["lat"]
-            target_lon = dist_info["lon"]
             resolved_district_name = dist_info["name"]
+            # Preserve target_lat and target_lon if explicitly provided (e.g., GPS locality like Gunupur)
+            if target_lat is None or target_lon is None:
+                target_lat = dist_info["lat"]
+                target_lon = dist_info["lon"]
 
     if target_lat is None or target_lon is None:
         raise HTTPException(
@@ -337,7 +345,6 @@ async def predict_wri(req: PredictionRequest):
         )
 
     # If coordinates were provided without district, find nearest Odisha district
-    detected_locality = None
     if not resolved_district_name:
         res_info = resolve_district_details(target_lat, target_lon)
         nearest_name = res_info["district"]
@@ -352,6 +359,15 @@ async def predict_wri(req: PredictionRequest):
             resolved_district_name = nearest_name
 
         dist_info = get_district_by_name(resolved_district_name)
+
+    # Auto-resolve locality if coordinates are present but locality is not yet set
+    if not detected_locality and target_lat is not None and target_lon is not None:
+        try:
+            res_info = resolve_district_details(target_lat, target_lon)
+            if res_info.get("locality"):
+                detected_locality = res_info.get("locality")
+        except Exception:
+            pass
 
     # 2. Isolated Location Cache (keyed strictly by district and 15-minute slot)
     now_ts = time.time()
@@ -402,8 +418,11 @@ async def predict_wri(req: PredictionRequest):
             try:
                 weather_resp = await client.get(weather_url, params=weather_params)
                 if weather_resp.status_code == 200:
-                    weather_data = weather_resp.json()
-                    break
+                    cand_data = weather_resp.json()
+                    # Validate that the response contains both current data and hourly timestamps
+                    if cand_data.get("current") and cand_data.get("hourly", {}).get("time"):
+                        weather_data = cand_data
+                        break
                 elif weather_resp.status_code == 429 and attempt == 0:
                     await asyncio.sleep(1.0)
                     continue
@@ -412,14 +431,16 @@ async def predict_wri(req: PredictionRequest):
                     await asyncio.sleep(0.5)
                     continue
 
-    # Fallback to realistic district climatological data if external API throttles
-    if not weather_data or "current" not in weather_data:
-        curr_hour = datetime.now().hour
+    # Fallback to realistic district climatological data if external API throttles or lacks hourly time
+    if not weather_data or "current" not in weather_data or not weather_data.get("hourly", {}).get("time"):
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        now_ist = datetime.now(ist_tz)
+        curr_hour = now_ist.hour
         is_daytime = 1 if 6 <= curr_hour <= 18 else 0
         elev = float(dist_info.get("elevation", 50.0)) if dist_info else 50.0
         c_km = float(dist_info.get("coast_km", 100.0)) if dist_info else 100.0
-        d_lat = float(dist_info.get("lat", target_lat)) if dist_info else target_lat
-        d_lon = float(dist_info.get("lon", target_lon)) if dist_info else target_lon
+        d_lat = float(target_lat) if target_lat is not None else (float(dist_info.get("lat", 20.0)) if dist_info else 20.0)
+        d_lon = float(target_lon) if target_lon is not None else (float(dist_info.get("lon", 85.0)) if dist_info else 85.0)
 
         # Environmental Lapse Rate: -0.65°C per 100m elevation above sea level
         sea_level_day_base = 32.5
@@ -452,16 +473,45 @@ async def predict_wri(req: PredictionRequest):
         t_max_est = round(adjusted_temp + (4.0 if is_daytime else 7.0), 1)
         t_min_est = round(adjusted_temp - (6.0 if is_daytime else 2.5), 1)
 
-        # Hourly diurnal curve (coolest around 05:00, warmest around 14:00)
-        hourly_temps = []
-        hourly_rhs = []
-        for h in range(24):
+        # Generate 72 hours of complete realistic hourly timeline (yesterday, today, tomorrow)
+        yesterday_00 = (now_ist - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        fallback_hourly_times = [(yesterday_00 + timedelta(hours=i)).strftime("%Y-%m-%dT%H:00") for i in range(72)]
+
+        fallback_temps = []
+        fallback_rhs = []
+        fallback_apparents = []
+        fallback_pops = []
+        fallback_precips = []
+        fallback_wcodes = []
+        fallback_winds = []
+        fallback_gusts = []
+        fallback_uvs = []
+        fallback_pressures = []
+
+        for i, t_str in enumerate(fallback_hourly_times):
+            h_dt = yesterday_00 + timedelta(hours=i)
+            h = h_dt.hour
             phase = (h - 5) / 24.0 * 2.0 * math.pi
-            diurnal_delta = math.sin(phase - math.pi / 2.0)
-            h_temp = round(t_min_est + ((t_max_est - t_min_est) * 0.5 * (1.0 + math.sin((h - 8) / 24.0 * 2.0 * math.pi))), 1)
-            h_rh = round(min(95.0, max(28.0, base_rh - (diurnal_delta * 12.0))), 1)
-            hourly_temps.append(h_temp)
-            hourly_rhs.append(h_rh)
+            temp_ratio = 0.5 * (1.0 - math.cos(phase))
+            h_temp = round(t_min_est + (t_max_est - t_min_est) * temp_ratio, 1)
+            rh_ratio = 0.5 * (1.0 + math.cos(phase))
+            h_rh = round(min(92.0, max(32.0, base_rh - 12.0 + (18.0 * rh_ratio))), 1)
+            h_app = round(h_temp + (0.5 if h_temp < 25 else (2.0 if h_temp > 30 else 1.2)), 1)
+            h_uv = round(max(0.0, 7.5 * math.sin((h - 6) / 12.0 * math.pi)), 1) if 6 <= h <= 18 else 0.0
+            h_wind = round(wind_base * (1.25 if 12 <= h <= 16 else 0.85), 1)
+            h_gust = round(h_wind * 1.35, 1)
+            h_ps = round(ps_calc + 1.2 * math.cos((h - 9) / 12.0 * 2.0 * math.pi), 1)
+
+            fallback_temps.append(h_temp)
+            fallback_rhs.append(h_rh)
+            fallback_apparents.append(h_app)
+            fallback_pops.append(5)
+            fallback_precips.append(0.0)
+            fallback_wcodes.append(1 if (6 <= h <= 18) else 0)
+            fallback_winds.append(h_wind)
+            fallback_gusts.append(h_gust)
+            fallback_uvs.append(h_uv)
+            fallback_pressures.append(h_ps)
 
         weather_data = {
             "elevation": elev,
@@ -478,26 +528,27 @@ async def predict_wri(req: PredictionRequest):
                 "precipitation": 0.0
             },
             "daily": {
-                "temperature_2m_max": [t_max_est, t_max_est],
-                "temperature_2m_min": [t_min_est, t_min_est],
-                "precipitation_sum": [0.0, 0.0],
-                "wind_speed_10m_max": [wind_base + 3.0, wind_base + 3.0],
-                "wind_gusts_10m_max": [wind_gust + 4.0, wind_gust + 4.0],
-                "uv_index_max": [6.5 if is_daytime else 0.0, 6.5],
-                "sunrise": ["05:50", "05:50"],
-                "sunset": ["17:35", "17:35"]
+                "temperature_2m_max": [t_max_est, t_max_est, t_max_est],
+                "temperature_2m_min": [t_min_est, t_min_est, t_min_est],
+                "precipitation_sum": [0.0, 0.0, 0.0],
+                "wind_speed_10m_max": [round(wind_base * 1.3, 1)] * 3,
+                "wind_gusts_10m_max": [round(wind_gust * 1.4, 1)] * 3,
+                "uv_index_max": [7.5, 7.5, 7.5],
+                "sunrise": ["05:50", "05:50", "05:50"],
+                "sunset": ["17:35", "17:35", "17:35"]
             },
             "hourly": {
-                "temperature_2m": hourly_temps,
-                "relative_humidity_2m": hourly_rhs,
-                "apparent_temperature": [round(t + 1.2, 1) for t in hourly_temps],
-                "precipitation_probability": [5] * 24,
-                "precipitation": [0.0] * 24,
-                "weather_code": [1] * 24,
-                "wind_speed_10m": [wind_base] * 24,
-                "wind_gusts_10m": [wind_gust] * 24,
-                "uv_index": [max(0.0, round(6.5 * math.sin((h - 6) / 12.0 * math.pi), 1)) if 6 <= h <= 18 else 0.0 for h in range(24)],
-                "surface_pressure": [ps_calc] * 24
+                "time": fallback_hourly_times,
+                "temperature_2m": fallback_temps,
+                "relative_humidity_2m": fallback_rhs,
+                "apparent_temperature": fallback_apparents,
+                "precipitation_probability": fallback_pops,
+                "precipitation": fallback_precips,
+                "weather_code": fallback_wcodes,
+                "wind_speed_10m": fallback_winds,
+                "wind_gusts_10m": fallback_gusts,
+                "uv_index": fallback_uvs,
+                "surface_pressure": fallback_pressures
             }
         }
 
