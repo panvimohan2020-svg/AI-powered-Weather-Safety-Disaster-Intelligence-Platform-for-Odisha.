@@ -336,6 +336,10 @@ export default function Dashboard() {
         weatherCode={wriData?.weather?.weather_code ?? 0}
         isDaytime={wriData?.weather?.is_daytime ?? true}
         temperature={wriData?.weather?.temperature_c ?? 30}
+        windSpeed={wriData?.weather?.wind_speed_kmh ?? 10}
+        condition={wriData?.weather?.condition ?? ''}
+        conditionGroup={wriData?.weather?.condition_group ?? ''}
+        humidity={wriData?.weather?.humidity_percent ?? 60}
         sunriseIso={wriData?.daily?.sunrise?.[0] ?? null}
         sunsetIso={wriData?.daily?.sunset?.[0] ?? null}
         animationsEnabled={animationsEnabled}

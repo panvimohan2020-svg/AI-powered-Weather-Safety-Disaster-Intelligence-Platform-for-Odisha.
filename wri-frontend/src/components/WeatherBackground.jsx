@@ -1,65 +1,143 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
+import { Sparkles, Sun, CloudRain, CloudLightning, Snowflake, Wind, Cloud, Eye, ChevronUp, ChevronDown, Check } from 'lucide-react';
 
 /**
- * Dynamic Weather Background Animations
- * Renders subtle, realistic, high-performance weather atmospheres
- * strictly driven by actual weather observations and astronomical times.
- * Supports: Sunny, Cloudy, Rainy, Thunderstorm, Heavy Rain, Nighttime, Sunrise/Sunset.
- * Accessible: respects user motion preferences and manual disable toggle.
+ * Beautiful, Dynamic Weather-Responsive Atmospheric Background Engine
+ * 
+ * Features:
+ * - 7 Distinct Weather Animation Modes:
+ *   1. ☀️ Sunny/Clear: Rotating sun rays, warm corona glow, drifting golden motes.
+ *   2. 🌧️ Rainy: Realistic falling rain streaks with ground impact splashes.
+ *   3. ⛈️ Thunderstorm: High-speed slanted rain, ground ripples, occasional soft ambient lightning.
+ *   4. ❄️ Cold/Snow: Fluttering snowflakes with sinusoidal drift & cold frost shimmer.
+ *   5. 💨 Windy: Streaming aerodynamic wind streaks & tumbling foliage breeze motes.
+ *   6. 🌫️ Foggy: Soft layered drifting mist banks with feather-edged opacity waves.
+ *   7. ☁️ Cloudy: Multi-layered soft drifting cumulus cloud decks.
+ * - Auto-Detection: Driven directly by live meteorological observations and WMO codes.
+ * - Layer Isolation: Strictly background (-z-10, pointer-events-none). Zero interference with UI.
+ * - Text Contrast Preservation: Deep atmospheric gradient base + contrast radial vignette (WCAG AAA).
+ * - Accessibility & Performance: Respects prefers-reduced-motion, pauses when tab is hidden.
+ * - Interactive Mode Previewer: Collapsible control allowing instant inspection of all 7 weather modes.
  */
 export default function WeatherBackground({ 
   weatherCode = 0, 
   isDaytime = true, 
   temperature = 30,
+  windSpeed = 10,
+  condition = '',
+  conditionGroup = '',
+  humidity = 60,
   sunriseIso = null,
   sunsetIso = null,
   animationsEnabled = true 
 }) {
   const canvasRef = useRef(null);
+  const [manualMode, setManualMode] = useState(null); // null = Auto (Live Telemetry)
+  const [isTesterOpen, setIsTesterOpen] = useState(false);
 
-  // Determine current atmospheric mode based on actual telemetry
+  // Automatically resolve the atmospheric mode from live weather telemetry
   const weatherMode = useMemo(() => {
-    const code = Number(weatherCode);
+    if (manualMode) return manualMode;
 
-    // 1. Check for Sunrise/Sunset window (within 45 min of sunrise or sunset)
-    const now = new Date();
+    const code = Number(weatherCode);
+    const cond = (condition || '').toLowerCase();
+    const group = (conditionGroup || '').toLowerCase();
+    const temp = Number(temperature);
+    const wind = Number(windSpeed);
+
+    // 1. Thunderstorm: WMO 95, 96, 99 or heavy storm codes or condition keyword
+    if (
+      [95, 96, 99].includes(code) || 
+      cond.includes('thunder') || 
+      cond.includes('lightning') || 
+      cond.includes('storm') || 
+      group === 'thunderstorm'
+    ) {
+      return 'thunderstorm';
+    }
+
+    // 2. Cold / Snow: WMO 71, 73, 75, 77, 85, 86 or temp < 14°C or snow/frost keyword
+    // (Models Odisha's highland winter mornings in Koraput / Daringbadi where temp drops to 7-12°C)
+    if (
+      [71, 73, 75, 77, 85, 86].includes(code) || 
+      cond.includes('snow') || 
+      cond.includes('frost') || 
+      cond.includes('ice') || 
+      cond.includes('blizzard') ||
+      temp < 14.0
+    ) {
+      return 'snow';
+    }
+
+    // 3. Rain / Showers: WMO 51, 53, 55, 61, 63, 65, 80, 81, 82 or rain keyword
+    if (
+      [51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code) || 
+      cond.includes('rain') || 
+      cond.includes('drizzle') || 
+      cond.includes('shower') || 
+      group === 'rain'
+    ) {
+      return [65, 82].includes(code) ? 'heavy_rain' : 'rain';
+    }
+
+    // 4. Foggy / Mist / Haze: WMO 45, 48 or mist/fog keyword
+    if (
+      [45, 48].includes(code) || 
+      cond.includes('fog') || 
+      cond.includes('mist') || 
+      cond.includes('haze') || 
+      cond.includes('smok') || 
+      group === 'fog'
+    ) {
+      return 'fog';
+    }
+
+    // 5. Windy / Gale: Wind speed >= 24 km/h or wind keyword
+    if (
+      wind >= 24.0 || 
+      cond.includes('wind') || 
+      cond.includes('squall') || 
+      cond.includes('gale') || 
+      group === 'windy'
+    ) {
+      return 'windy';
+    }
+
+    // 6. Cloudy / Overcast: WMO 2, 3 or cloud/overcast keyword
+    if (
+      [2, 3].includes(code) || 
+      cond.includes('cloud') || 
+      cond.includes('overcast') || 
+      group === 'cloudy'
+    ) {
+      return isDaytime ? 'cloudy' : 'cloudy_night';
+    }
+
+    // 7. Twilight Window (within 40 minutes of sunrise or sunset during clear sky)
     if (sunriseIso && sunsetIso) {
       try {
+        const now = new Date().getTime();
         const srTime = new Date(sunriseIso).getTime();
         const ssTime = new Date(sunsetIso).getTime();
-        const nowTime = now.getTime();
-        const srDiff = Math.abs(nowTime - srTime) / (60 * 1000);
-        const ssDiff = Math.abs(nowTime - ssTime) / (60 * 1000);
-        if (srDiff <= 45 || ssDiff <= 45) {
-          return 'twilight'; // Sunrise/Sunset golden hour
+        const srDiff = Math.abs(now - srTime) / 60000;
+        const ssDiff = Math.abs(now - ssTime) / 60000;
+        if (srDiff <= 40 || ssDiff <= 40) {
+          return 'twilight';
         }
       } catch (e) {}
     }
 
-    // 2. Thunderstorm WMO codes: 95, 96, 99
-    if ([95, 96, 99].includes(code)) return 'thunderstorm';
+    // 8. Default Sunny Day or Celestial Night
+    return isDaytime ? 'sunny' : 'night';
+  }, [manualMode, weatherCode, isDaytime, temperature, windSpeed, condition, conditionGroup, sunriseIso, sunsetIso]);
 
-    // 3. Heavy Rain WMO codes: 65, 82
-    if ([65, 82].includes(code)) return 'heavy_rain';
-
-    // 4. Rainy / Drizzle WMO codes: 51, 53, 55, 61, 63, 80, 81
-    if ([51, 53, 55, 61, 63, 80, 81].includes(code)) return 'rain';
-
-    // 5. Cloudy / Overcast WMO codes: 2, 3, 45, 48
-    if ([2, 3, 45, 48].includes(code)) return isDaytime ? 'cloudy' : 'cloudy_night';
-
-    // 6. Clear / Sunny
-    if (isDaytime) return 'sunny';
-    return 'night';
-  }, [weatherCode, isDaytime, sunriseIso, sunsetIso]);
-
-  // Canvas Rain & Particle Engine
+  // High-Performance Multi-Particle Canvas Engine
   useEffect(() => {
     if (!animationsEnabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Check prefers-reduced-motion
+    // Respect user's reduced-motion preference
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (mediaQuery.matches) return;
 
@@ -75,103 +153,369 @@ export default function WeatherBackground({
     };
     window.addEventListener('resize', handleResize);
 
-    // Particle types setup
+    // Track tab visibility to pause animation loops when not visible
+    let isTabVisible = !document.hidden;
+    const handleVisibilityChange = () => {
+      isTabVisible = !document.hidden;
+      if (isTabVisible && !animationFrameId) {
+        animationFrameId = requestAnimationFrame(render);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Initialize particle arrays
     let particles = [];
-    const isRain = ['rain', 'heavy_rain', 'thunderstorm'].includes(weatherMode);
-    const isSunny = weatherMode === 'sunny' || weatherMode === 'twilight';
-    const isNight = weatherMode === 'night';
+    let splashes = [];
+    let lightningTimer = 0;
+    let lightningFlash = 0;
 
-    const count = weatherMode === 'heavy_rain' ? 120 : (isRain ? 70 : (isNight ? 55 : (isSunny ? 25 : 0)));
-
-    for (let i = 0; i < count; i++) {
-      if (isRain) {
+    // 1. Rain / Storm particle configuration
+    if (['rain', 'heavy_rain', 'thunderstorm'].includes(weatherMode)) {
+      const isHeavy = weatherMode === 'heavy_rain' || weatherMode === 'thunderstorm';
+      const rainCount = isHeavy ? 110 : 70;
+      for (let i = 0; i < rainCount; i++) {
         particles.push({
-          x: Math.random() * width,
+          x: Math.random() * (width + 100),
           y: Math.random() * height,
-          length: weatherMode === 'heavy_rain' ? 18 + Math.random() * 12 : 10 + Math.random() * 8,
-          speed: weatherMode === 'heavy_rain' ? 14 + Math.random() * 6 : 9 + Math.random() * 4,
-          opacity: 0.2 + Math.random() * 0.4
-        });
-      } else if (isNight) {
-        particles.push({
-          x: Math.random() * width,
-          y: Math.random() * height * 0.8,
-          radius: Math.random() * 1.5 + 0.4,
-          alpha: Math.random(),
-          speed: 0.01 + Math.random() * 0.02
-        });
-      } else if (isSunny) {
-        particles.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          radius: Math.random() * 2 + 0.8,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: -Math.random() * 0.5 - 0.2,
-          alpha: 0.15 + Math.random() * 0.3
+          length: isHeavy ? 16 + Math.random() * 12 : 10 + Math.random() * 8,
+          speed: isHeavy ? 14 + Math.random() * 8 : 9 + Math.random() * 5,
+          slant: isHeavy ? -2.2 : -1.2,
+          opacity: 0.18 + Math.random() * 0.35,
+          isForeground: Math.random() > 0.6
         });
       }
     }
 
-    let lightningTimer = 0;
-    let lightningFlash = 0;
+    // 2. Snow / Cold Frost particles
+    else if (weatherMode === 'snow') {
+      const snowCount = 65;
+      for (let i = 0; i < snowCount; i++) {
+        particles.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          radius: 1.2 + Math.random() * 3.0,
+          speed: 0.8 + Math.random() * 1.6,
+          wobble: Math.random() * Math.PI * 2,
+          wobbleSpeed: 0.015 + Math.random() * 0.025,
+          opacity: 0.25 + Math.random() * 0.55
+        });
+      }
+      // Add crystalline frost glitter
+      for (let i = 0; i < 20; i++) {
+        particles.push({
+          type: 'frost',
+          x: Math.random() * width,
+          y: Math.random() * height,
+          radius: 0.8 + Math.random() * 1.2,
+          alpha: Math.random(),
+          speed: 0.02 + Math.random() * 0.03
+        });
+      }
+    }
 
+    // 3. Windy particles (speed streaks & tumbling leaves)
+    else if (weatherMode === 'windy') {
+      const windStreakCount = 40;
+      for (let i = 0; i < windStreakCount; i++) {
+        particles.push({
+          type: 'streak',
+          x: Math.random() * width,
+          y: Math.random() * height,
+          length: 40 + Math.random() * 65,
+          speed: 14 + Math.random() * 10,
+          opacity: 0.12 + Math.random() * 0.22,
+          wave: Math.random() * Math.PI * 2
+        });
+      }
+      const leafCount = 18;
+      for (let i = 0; i < leafCount; i++) {
+        particles.push({
+          type: 'leaf',
+          x: Math.random() * width,
+          y: Math.random() * height,
+          speedX: 6 + Math.random() * 6,
+          speedY: (Math.random() - 0.5) * 1.5,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.08,
+          size: 2.5 + Math.random() * 2.5,
+          opacity: 0.25 + Math.random() * 0.35
+        });
+      }
+    }
+
+    // 4. Foggy diffuse mist puffs
+    else if (weatherMode === 'fog') {
+      const fogCount = 28;
+      for (let i = 0; i < fogCount; i++) {
+        particles.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          radius: 60 + Math.random() * 80,
+          speedX: 0.2 + Math.random() * 0.35,
+          pulse: Math.random() * Math.PI * 2,
+          alpha: 0.035 + Math.random() * 0.045
+        });
+      }
+    }
+
+    // 5. Sunny & Twilight golden motes
+    else if (weatherMode === 'sunny' || weatherMode === 'twilight') {
+      const moteCount = 30;
+      for (let i = 0; i < moteCount; i++) {
+        particles.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          radius: 1.2 + Math.random() * 2.0,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: -Math.random() * 0.45 - 0.15,
+          alpha: 0.18 + Math.random() * 0.32
+        });
+      }
+    }
+
+    // 6. Cloudy atmospheric vapor
+    else if (weatherMode === 'cloudy' || weatherMode === 'cloudy_night') {
+      const vaporCount = 22;
+      for (let i = 0; i < vaporCount; i++) {
+        particles.push({
+          x: Math.random() * width,
+          y: Math.random() * (height * 0.65),
+          radius: 35 + Math.random() * 45,
+          speedX: 0.15 + Math.random() * 0.3,
+          alpha: 0.03 + Math.random() * 0.04
+        });
+      }
+    }
+
+    // 7. Night celestial stars
+    else if (weatherMode === 'night') {
+      const starCount = 65;
+      for (let i = 0; i < starCount; i++) {
+        particles.push({
+          x: Math.random() * width,
+          y: Math.random() * (height * 0.85),
+          radius: 0.6 + Math.random() * 1.4,
+          alpha: Math.random(),
+          speed: 0.015 + Math.random() * 0.03
+        });
+      }
+    }
+
+    // Animation Render Loop
     const render = () => {
+      if (!isTabVisible) {
+        animationFrameId = null;
+        return;
+      }
+
       ctx.clearRect(0, 0, width, height);
 
-      // Thunderstorm lightning logic
+      // --- Thunderstorm Lightning Flash (WCAG 2.3.1 Safe spaced) ---
       if (weatherMode === 'thunderstorm') {
         lightningTimer++;
-        if (lightningTimer > 280 && Math.random() < 0.015) {
-          lightningFlash = 0.22;
+        if (lightningTimer > 320 && Math.random() < 0.012) {
+          lightningFlash = 0.20; // Gentle ambient flash, non-strobing
           lightningTimer = 0;
         }
         if (lightningFlash > 0) {
-          ctx.fillStyle = `rgba(220, 235, 255, ${lightningFlash})`;
+          ctx.fillStyle = `rgba(215, 230, 255, ${lightningFlash})`;
           ctx.fillRect(0, 0, width, height);
-          lightningFlash -= 0.015;
+          lightningFlash -= 0.012;
         }
       }
 
-      // Render rain
-      if (isRain) {
-        ctx.strokeStyle = weatherMode === 'thunderstorm' ? 'rgba(186, 215, 255, 0.45)' : 'rgba(200, 225, 255, 0.35)';
-        ctx.lineWidth = weatherMode === 'heavy_rain' ? 1.8 : 1.2;
+      // --- Render Rain & Splashes ---
+      if (['rain', 'heavy_rain', 'thunderstorm'].includes(weatherMode)) {
+        ctx.strokeStyle = weatherMode === 'thunderstorm' 
+          ? 'rgba(190, 218, 255, 0.45)' 
+          : 'rgba(210, 230, 255, 0.35)';
+        ctx.lineWidth = weatherMode === 'heavy_rain' || weatherMode === 'thunderstorm' ? 1.6 : 1.2;
         ctx.beginPath();
+        
         for (let p of particles) {
           ctx.moveTo(p.x, p.y);
-          ctx.lineTo(p.x - 2, p.y + p.length);
+          ctx.lineTo(p.x + p.slant, p.y + p.length);
           p.y += p.speed;
-          p.x -= 0.8;
+          p.x += p.slant;
+
           if (p.y > height) {
+            // Spawn subtle ground impact splash
+            if (splashes.length < 25 && Math.random() < 0.35) {
+              splashes.push({
+                x: p.x,
+                y: height - 2,
+                vx: (Math.random() - 0.5) * 2.5,
+                vy: -Math.random() * 2.0 - 0.8,
+                alpha: 0.4,
+                radius: 1.0
+              });
+            }
             p.y = -p.length;
-            p.x = Math.random() * width;
+            p.x = Math.random() * (width + 100);
           }
         }
         ctx.stroke();
+
+        // Update and draw splashes
+        for (let i = splashes.length - 1; i >= 0; i--) {
+          const s = splashes[i];
+          s.x += s.vx;
+          s.y += s.vy;
+          s.vy += 0.15; // gravity
+          s.alpha -= 0.035;
+
+          if (s.alpha <= 0) {
+            splashes.splice(i, 1);
+            continue;
+          }
+
+          ctx.fillStyle = `rgba(215, 235, 255, ${s.alpha})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
-      // Render starry night
-      else if (isNight) {
+      // --- Render Snow & Frost ---
+      else if (weatherMode === 'snow') {
         for (let p of particles) {
-          p.alpha += p.speed;
-          const currentAlpha = Math.abs(Math.sin(p.alpha)) * 0.7 + 0.15;
-          ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
+          if (p.type === 'frost') {
+            p.alpha += p.speed;
+            const currentAlpha = Math.abs(Math.sin(p.alpha)) * 0.45 + 0.15;
+            ctx.fillStyle = `rgba(200, 245, 255, ${currentAlpha})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            p.wobble += p.wobbleSpeed;
+            p.x += Math.sin(p.wobble) * 0.75;
+            p.y += p.speed;
+
+            if (p.y > height) {
+              p.y = -p.radius * 2;
+              p.x = Math.random() * width;
+            }
+
+            ctx.fillStyle = `rgba(245, 250, 255, ${p.opacity})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // --- Render Windy Streaks & Leaves ---
+      else if (weatherMode === 'windy') {
+        // Draw wind aerodynamic streaks
+        ctx.strokeStyle = 'rgba(210, 235, 255, 0.22)';
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        for (let p of particles) {
+          if (p.type === 'streak') {
+            p.wave += 0.03;
+            const waveOffset = Math.sin(p.wave) * 2;
+            ctx.moveTo(p.x, p.y + waveOffset);
+            ctx.lineTo(p.x + p.length, p.y + waveOffset * 1.5);
+            p.x += p.speed;
+            if (p.x > width) {
+              p.x = -p.length;
+              p.y = Math.random() * height;
+            }
+          }
+        }
+        ctx.stroke();
+
+        // Draw tumbling breeze leaves
+        for (let p of particles) {
+          if (p.type === 'leaf') {
+            p.x += p.speedX;
+            p.y += Math.sin(p.rotation) * 1.2;
+            p.rotation += p.rotSpeed;
+
+            if (p.x > width) {
+              p.x = -20;
+              p.y = Math.random() * height;
+            }
+
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.fillStyle = `rgba(200, 220, 160, ${p.opacity})`;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, p.size * 1.8, p.size * 0.8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
+
+      // --- Render Fog Mist Puffs ---
+      else if (weatherMode === 'fog') {
+        for (let p of particles) {
+          p.x += p.speedX;
+          p.pulse += 0.015;
+          const currentAlpha = p.alpha + Math.sin(p.pulse) * 0.015;
+
+          if (p.x - p.radius > width) {
+            p.x = -p.radius;
+            p.y = Math.random() * height;
+          }
+
+          const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+          grad.addColorStop(0, `rgba(220, 235, 245, ${currentAlpha})`);
+          grad.addColorStop(1, 'rgba(220, 235, 245, 0)');
+          ctx.fillStyle = grad;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
           ctx.fill();
         }
       }
 
-      // Render sun dust motes
-      else if (isSunny) {
+      // --- Render Sunny Sun Motes ---
+      else if (weatherMode === 'sunny' || weatherMode === 'twilight') {
         for (let p of particles) {
           p.x += p.vx;
           p.y += p.vy;
+
           if (p.y < 0) {
             p.y = height;
             p.x = Math.random() * width;
           }
-          ctx.fillStyle = `rgba(255, 235, 170, ${p.alpha})`;
+
+          ctx.fillStyle = weatherMode === 'twilight' 
+            ? `rgba(255, 205, 150, ${p.alpha})` 
+            : `rgba(255, 235, 170, ${p.alpha})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // --- Render Cloudy Vapor ---
+      else if (weatherMode === 'cloudy' || weatherMode === 'cloudy_night') {
+        for (let p of particles) {
+          p.x += p.speedX;
+          if (p.x - p.radius > width) {
+            p.x = -p.radius;
+            p.y = Math.random() * (height * 0.65);
+          }
+
+          const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+          grad.addColorStop(0, `rgba(210, 225, 240, ${p.alpha})`);
+          grad.addColorStop(1, 'rgba(210, 225, 240, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // --- Render Night Twinkling Stars ---
+      else if (weatherMode === 'night') {
+        for (let p of particles) {
+          p.alpha += p.speed;
+          const currentAlpha = Math.abs(Math.sin(p.alpha)) * 0.65 + 0.15;
+          ctx.fillStyle = `rgba(240, 248, 255, ${currentAlpha})`;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
           ctx.fill();
@@ -185,77 +529,216 @@ export default function WeatherBackground({
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       cancelAnimationFrame(animationFrameId);
     };
   }, [weatherMode, animationsEnabled]);
 
-  // Background gradient map according to exact meteorology
+  // High-Fidelity Atmospheric Base Gradients
   const getAtmosphericGradient = () => {
     switch (weatherMode) {
       case 'sunny':
-        return 'from-sky-500/25 via-amber-400/10 to-slate-900';
+        return 'from-sky-900/40 via-blue-950/60 to-slate-950';
       case 'twilight':
-        return 'from-amber-600/30 via-rose-500/20 to-slate-950';
-      case 'cloudy':
-        return 'from-slate-600/30 via-slate-700/20 to-slate-950';
-      case 'cloudy_night':
-        return 'from-slate-800/40 via-slate-900/40 to-black';
+        return 'from-amber-950/45 via-rose-950/35 to-slate-950';
       case 'rain':
-        return 'from-sky-900/40 via-slate-800/40 to-slate-950';
+        return 'from-slate-900/70 via-blue-950/60 to-slate-950';
       case 'heavy_rain':
-        return 'from-slate-900/60 via-blue-950/50 to-black';
+        return 'from-slate-950 via-blue-950/75 to-black';
       case 'thunderstorm':
-        return 'from-purple-950/50 via-slate-900/60 to-black';
+        return 'from-purple-950/70 via-slate-950/80 to-black';
+      case 'snow':
+        return 'from-cyan-950/45 via-blue-950/40 to-slate-950';
+      case 'windy':
+        return 'from-teal-950/40 via-slate-900/50 to-slate-950';
+      case 'fog':
+        return 'from-slate-800/45 via-slate-900/60 to-slate-950';
+      case 'cloudy':
+        return 'from-slate-800/50 via-slate-900/60 to-slate-950';
+      case 'cloudy_night':
+        return 'from-slate-900/70 via-black to-slate-950';
       case 'night':
       default:
-        return 'from-indigo-950/35 via-slate-900/50 to-slate-950';
+        return 'from-indigo-950/45 via-slate-900/60 to-slate-950';
     }
   };
 
+  const previewModes = [
+    { id: null, label: 'Auto (Live Telemetry)', icon: Sparkles },
+    { id: 'sunny', label: '☀️ Sunny / Clear', icon: Sun },
+    { id: 'rain', label: '🌧️ Rainy', icon: CloudRain },
+    { id: 'thunderstorm', label: '⛈️ Thunderstorm', icon: CloudLightning },
+    { id: 'snow', label: '❄️ Cold / Snow', icon: Snowflake },
+    { id: 'windy', label: '💨 Windy', icon: Wind },
+    { id: 'fog', label: '🌫️ Foggy', icon: Cloud },
+    { id: 'cloudy', label: '☁️ Cloudy', icon: Cloud },
+    { id: 'night', label: '🌙 Clear Night', icon: Sparkles }
+  ];
+
   return (
-    <div 
-      className="fixed inset-0 pointer-events-none -z-10 overflow-hidden transition-colors duration-1000"
-      aria-hidden="true"
-    >
-      {/* Sky Gradient Base */}
-      <div className={`absolute inset-0 bg-gradient-to-b ${getAtmosphericGradient()}`} />
+    <>
+      {/* ============================================================== */}
+      {/* 1. FIXED BACKGROUND CONTAINER (strictly -z-10, pointer-events-none) */}
+      {/* ============================================================== */}
+      <div 
+        className="fixed inset-0 pointer-events-none -z-10 overflow-hidden transition-colors duration-1000"
+        aria-hidden="true"
+      >
+        {/* Sky Atmospheric Gradient Base */}
+        <div className={`absolute inset-0 bg-gradient-to-b ${getAtmosphericGradient()} transition-all duration-1000`} />
 
-      {/* Decorative Atmospheric Elements */}
-      {animationsEnabled && (
-        <>
-          {/* Sunny: Radiant Sun & Ambient Glow */}
-          {weatherMode === 'sunny' && (
-            <div className="absolute -top-16 -right-16 w-80 h-80 rounded-full bg-amber-400/20 blur-3xl animate-pulse duration-[8000ms]" />
-          )}
+        {/* Decorative Atmospheric Layers */}
+        {animationsEnabled && (
+          <>
+            {/* ☀️ SUNNY: Rotating Sun Rays & Warm Radial Corona */}
+            {(weatherMode === 'sunny' || weatherMode === 'twilight') && (
+              <div className="absolute -top-24 -right-24 w-[32rem] h-[32rem] pointer-events-none select-none">
+                {/* Outer Glow Corona */}
+                <div 
+                  className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-400/25 via-yellow-400/15 to-transparent blur-3xl"
+                  style={{ animation: 'sunCoronaPulse 8s ease-in-out infinite' }}
+                />
+                
+                {/* SVG Rotating Light Rays */}
+                <svg 
+                  className="w-full h-full opacity-35"
+                  style={{ animation: 'sunRaySpin 120s linear infinite' }}
+                  viewBox="0 0 200 200"
+                >
+                  <circle cx="100" cy="100" r="30" fill="rgba(253, 224, 71, 0.4)" />
+                  {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => (
+                    <line 
+                      key={deg} 
+                      x1="100" y1="100" 
+                      x2={100 + 95 * Math.cos(deg * Math.PI / 180)} 
+                      y2={100 + 95 * Math.sin(deg * Math.PI / 180)} 
+                      stroke="rgba(253, 230, 138, 0.25)" 
+                      strokeWidth="2.5" 
+                      strokeDasharray="12,12" 
+                    />
+                  ))}
+                </svg>
+              </div>
+            )}
 
-          {/* Twilight: Horizon glow */}
-          {weatherMode === 'twilight' && (
-            <div className="absolute -bottom-24 left-0 right-0 h-96 bg-gradient-to-t from-orange-500/25 via-pink-500/10 to-transparent blur-2xl" />
-          )}
+            {/* 🌙 NIGHT: Crescent Lunar Glow Aura */}
+            {weatherMode === 'night' && (
+              <div className="absolute top-10 right-14 w-28 h-28 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none select-none">
+                <div className="w-16 h-16 rounded-full border-t-[3px] border-l-[3px] border-slate-100/70 shadow-[0_0_30px_rgba(255,255,255,0.45)] ml-4 mt-4" />
+              </div>
+            )}
 
-          {/* Night: Crescent Moon Glow */}
-          {weatherMode === 'night' && (
-            <div className="absolute top-12 right-16 w-20 h-20 rounded-full bg-slate-200/25 blur-xl pointer-events-none">
-              <div className="w-12 h-12 rounded-full border-t-2 border-l-2 border-slate-100/60 shadow-[0_0_25px_rgba(255,255,255,0.4)] ml-3 mt-3" />
+            {/* ☁️ CLOUDY: Multi-layered soft drifting cumulus clouds */}
+            {['cloudy', 'cloudy_night', 'rain', 'heavy_rain', 'thunderstorm'].includes(weatherMode) && (
+              <>
+                <div 
+                  className="absolute top-6 -left-36 w-[34rem] h-48 bg-slate-400/10 rounded-full blur-3xl pointer-events-none"
+                  style={{ animation: 'cloudDriftSlow 65s linear infinite' }}
+                />
+                <div 
+                  className="absolute top-20 -right-44 w-[38rem] h-56 bg-slate-500/12 rounded-full blur-3xl pointer-events-none"
+                  style={{ animation: 'cloudDriftMedium 80s linear infinite' }}
+                />
+              </>
+            )}
+
+            {/* 🌫️ FOGGY: Layered rolling mist sheets */}
+            {weatherMode === 'fog' && (
+              <>
+                <div 
+                  className="absolute top-1/4 left-0 right-0 h-72 bg-gradient-to-r from-slate-400/10 via-slate-300/18 to-slate-400/10 blur-3xl pointer-events-none"
+                  style={{ animation: 'fogBankDrift1 30s ease-in-out infinite alternate' }}
+                />
+                <div 
+                  className="absolute bottom-1/4 left-0 right-0 h-80 bg-gradient-to-r from-slate-300/15 via-slate-400/22 to-slate-300/15 blur-3xl pointer-events-none"
+                  style={{ animation: 'fogBankDrift2 38s ease-in-out infinite alternate' }}
+                />
+              </>
+            )}
+
+            {/* 💨 WINDY: Sweeping atmospheric air currents */}
+            {weatherMode === 'windy' && (
+              <div 
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/5 to-transparent blur-2xl pointer-events-none"
+                style={{ animation: 'windSwoosh 18s ease-in-out infinite' }}
+              />
+            )}
+
+            {/* ❄️ SNOW / COLD: Frost atmospheric glimmer */}
+            {weatherMode === 'snow' && (
+              <div 
+                className="absolute inset-0 bg-radial-gradient from-cyan-400/5 to-transparent pointer-events-none"
+                style={{ animation: 'frostShimmer 6s ease-in-out infinite' }}
+              />
+            )}
+
+            {/* Dynamic Multi-Particle Canvas Engine */}
+            <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full pointer-events-none" />
+          </>
+        )}
+
+        {/* Contrast Preservation Vignette (ensures text readability across light & dark themes) */}
+        <div className="absolute inset-0 bg-radial-vignette opacity-50 pointer-events-none" />
+      </div>
+
+      {/* ============================================================== */}
+      {/* 2. DISCREET ATMOSPHERIC MODE PREVIEWER & TEST CONTROLLER       */}
+      {/* ============================================================== */}
+      <div className="fixed bottom-4 left-4 z-30 pointer-events-auto">
+        {!isTesterOpen ? (
+          <button
+            onClick={() => setIsTesterOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800/90 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700/70 shadow-lg backdrop-blur-md cursor-pointer transition-all active:scale-95 group"
+            title="Inspect / Test Weather Background Animations"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-45 transition-transform" />
+            <span className="hidden sm:inline">Theme:</span>
+            <span className="text-cyan-300 font-bold capitalize">
+              {manualMode ? manualMode.replace('_', ' ') : `Live (${weatherMode.replace('_', ' ')})`}
+            </span>
+            <ChevronUp className="w-3 h-3 text-slate-400 ml-0.5" />
+          </button>
+        ) : (
+          <div className="bg-slate-900/95 border border-slate-700/90 rounded-2xl p-3 shadow-2xl backdrop-blur-xl max-w-xs text-xs animate-slide-up flex flex-col gap-2">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+              <span className="font-black text-white flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                Weather Background Preview
+              </span>
+              <button
+                onClick={() => setIsTesterOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
             </div>
-          )}
 
-          {/* Cloudy: Soft Floating Cloud Layers */}
-          {['cloudy', 'cloudy_night', 'rain', 'thunderstorm'].includes(weatherMode) && (
-            <>
-              <div className="absolute top-8 -left-32 w-96 h-36 bg-slate-400/10 rounded-full blur-2xl animate-[float_45s_infinite_linear]" />
-              <div className="absolute top-24 -right-40 w-[30rem] h-48 bg-slate-500/10 rounded-full blur-3xl animate-[float_60s_infinite_linear_reverse]" />
-            </>
-          )}
+            <p className="text-[0.68rem] text-slate-400 leading-snug">
+              Preview each of the 7 dynamic atmospheric animations in real time. Default is live meteorological telemetry.
+            </p>
 
-          {/* Canvas for Rain, Dust, Stars */}
-          <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full" />
-        </>
-      )}
-
-      {/* Subtle Noise / Vignette Texture to ensure readable contrast */}
-      <div className="absolute inset-0 bg-radial-vignette opacity-40" />
-    </div>
+            <div className="grid grid-cols-1 gap-1 max-h-56 overflow-y-auto pr-1">
+              {previewModes.map((m) => {
+                const isActive = manualMode === m.id;
+                return (
+                  <button
+                    key={String(m.id)}
+                    onClick={() => setManualMode(m.id)}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                      isActive 
+                        ? 'bg-blue-600 text-white shadow-sm' 
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
+                  >
+                    <span className="truncate">{m.label}</span>
+                    {isActive && <Check className="w-3.5 h-3.5 text-white flex-shrink-0 ml-1" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
-
