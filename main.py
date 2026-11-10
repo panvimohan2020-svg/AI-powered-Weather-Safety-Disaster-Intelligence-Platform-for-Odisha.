@@ -2,6 +2,7 @@ import os
 import time
 import json
 import copy
+import math
 import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
@@ -415,41 +416,88 @@ async def predict_wri(req: PredictionRequest):
     if not weather_data or "current" not in weather_data:
         curr_hour = datetime.now().hour
         is_daytime = 1 if 6 <= curr_hour <= 18 else 0
-        base_temp = 29.5 if is_daytime else 22.0
+        elev = float(dist_info.get("elevation", 50.0)) if dist_info else 50.0
+        c_km = float(dist_info.get("coast_km", 100.0)) if dist_info else 100.0
+        d_lat = float(dist_info.get("lat", target_lat)) if dist_info else target_lat
+        d_lon = float(dist_info.get("lon", target_lon)) if dist_info else target_lon
+
+        # Environmental Lapse Rate: -0.65°C per 100m elevation above sea level
+        sea_level_day_base = 32.5
+        sea_level_night_base = 23.5
+        base_sl_temp = sea_level_day_base if is_daytime else sea_level_night_base
+
+        # Western continental heating offset (Western Odisha is hotter inland during daytime)
+        western_offset = max(0.0, (86.0 - d_lon) * 0.7) if is_daytime else -0.5
+        adjusted_temp = round(base_sl_temp - (elev / 100.0) * 0.65 + western_offset, 1)
+
+        # Humidity: Coastal maritime air is more humid, western plateaus drier
+        if c_km <= 40.0:
+            base_rh = 75.0 if is_daytime else 86.0
+        elif c_km <= 120.0:
+            base_rh = 64.0 if is_daytime else 78.0
+        else:
+            base_rh = 50.0 if is_daytime else 68.0
+
+        # Elevation cooling increases relative humidity slightly
+        base_rh = min(95.0, max(30.0, round(base_rh + (elev / 500.0) * 3.0, 1)))
+
+        # Wind speed: Coastal breezes stronger
+        wind_base = 15.0 if c_km <= 40.0 else (11.0 if elev > 300 else 8.5)
+        wind_gust = round(wind_base * 1.35, 1)
+
+        # Barometric surface pressure via hypsometric formula
+        ps_calc = round(1013.25 * ((1.0 - (2.25577e-5 * elev)) ** 5.25588), 1)
+
+        # Max / min temperature range
+        t_max_est = round(adjusted_temp + (4.0 if is_daytime else 7.0), 1)
+        t_min_est = round(adjusted_temp - (6.0 if is_daytime else 2.5), 1)
+
+        # Hourly diurnal curve (coolest around 05:00, warmest around 14:00)
+        hourly_temps = []
+        hourly_rhs = []
+        for h in range(24):
+            phase = (h - 5) / 24.0 * 2.0 * math.pi
+            diurnal_delta = math.sin(phase - math.pi / 2.0)
+            h_temp = round(t_min_est + ((t_max_est - t_min_est) * 0.5 * (1.0 + math.sin((h - 8) / 24.0 * 2.0 * math.pi))), 1)
+            h_rh = round(min(95.0, max(28.0, base_rh - (diurnal_delta * 12.0))), 1)
+            hourly_temps.append(h_temp)
+            hourly_rhs.append(h_rh)
+
         weather_data = {
-            "elevation": dist_info.get("elevation", 50.0) if dist_info else 50.0,
+            "elevation": elev,
+            "fallback_used": True,
             "current": {
-                "temperature_2m": base_temp,
-                "relative_humidity_2m": 62.0,
-                "apparent_temperature": base_temp + 1.2,
-                "wind_speed_10m": 11.5,
-                "wind_gusts_10m": 15.0,
-                "surface_pressure": 1012.0,
+                "temperature_2m": adjusted_temp,
+                "relative_humidity_2m": base_rh,
+                "apparent_temperature": round(adjusted_temp + 1.2, 1),
+                "wind_speed_10m": wind_base,
+                "wind_gusts_10m": wind_gust,
+                "surface_pressure": ps_calc,
                 "weather_code": 1,
                 "is_day": is_daytime,
                 "precipitation": 0.0
             },
             "daily": {
-                "temperature_2m_max": [30.5, 30.8],
-                "temperature_2m_min": [21.5, 21.2],
+                "temperature_2m_max": [t_max_est, t_max_est],
+                "temperature_2m_min": [t_min_est, t_min_est],
                 "precipitation_sum": [0.0, 0.0],
-                "wind_speed_10m_max": [14.0, 15.0],
-                "wind_gusts_10m_max": [18.0, 19.0],
-                "uv_index_max": [6.5, 6.8],
+                "wind_speed_10m_max": [wind_base + 3.0, wind_base + 3.0],
+                "wind_gusts_10m_max": [wind_gust + 4.0, wind_gust + 4.0],
+                "uv_index_max": [6.5 if is_daytime else 0.0, 6.5],
                 "sunrise": ["05:50", "05:50"],
-                "sunset": ["17:15", "17:15"]
+                "sunset": ["17:35", "17:35"]
             },
             "hourly": {
-                "temperature_2m": [base_temp] * 24,
-                "relative_humidity_2m": [62.0] * 24,
-                "apparent_temperature": [base_temp + 1.2] * 24,
-                "precipitation_probability": [0] * 24,
+                "temperature_2m": hourly_temps,
+                "relative_humidity_2m": hourly_rhs,
+                "apparent_temperature": [round(t + 1.2, 1) for t in hourly_temps],
+                "precipitation_probability": [5] * 24,
                 "precipitation": [0.0] * 24,
                 "weather_code": [1] * 24,
-                "wind_speed_10m": [11.5] * 24,
-                "wind_gusts_10m": [15.0] * 24,
-                "uv_index": [5.0] * 24,
-                "surface_pressure": [1012.0] * 24
+                "wind_speed_10m": [wind_base] * 24,
+                "wind_gusts_10m": [wind_gust] * 24,
+                "uv_index": [max(0.0, round(6.5 * math.sin((h - 6) / 12.0 * math.pi), 1)) if 6 <= h <= 18 else 0.0 for h in range(24)],
+                "surface_pressure": [ps_calc] * 24
             }
         }
 

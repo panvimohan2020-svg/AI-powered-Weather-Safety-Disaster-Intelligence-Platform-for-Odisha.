@@ -20,6 +20,7 @@ __pycache__/
 htmlcov/
 .tox/
 .nox/
+scratch/
 
 # 3. Node.js & Frontend Build Outputs
 node_modules/

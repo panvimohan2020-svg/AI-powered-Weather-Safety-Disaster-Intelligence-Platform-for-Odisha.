@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Odisha WRI | District Safety & Weather Intelligence</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <!-- Tailwind CSS (Play CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -100,21 +102,24 @@
 
         <!-- Top Header & Solar Day/Night Indicator -->
         <header class="flex justify-between items-center pb-2 border-b border-white/10">
-            <div>
-                <div class="flex items-center gap-2.5">
-                    <h1
-                        class="text-2xl sm:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">
-                        ODISHA <span class="text-blue-500">WRI</span>
-                    </h1>
-                    <span id="day-night-badge"
-                        class="text-[0.65rem] font-bold px-2 py-0.5 rounded-full border border-indigo-500/40 bg-indigo-950/60 text-indigo-300 flex items-center gap-1">
-                        <i id="day-night-icon" data-lucide="moon" class="w-3 h-3 text-indigo-400"></i>
-                        <span id="day-night-text">NIGHTTIME</span>
-                    </span>
+            <div class="flex items-center gap-3">
+                <img src="/static/logo-mark.svg" alt="Odisha WRI" class="w-10 h-10 rounded-xl shadow-md shadow-emerald-500/10 object-contain">
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <h1
+                            class="text-2xl sm:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">
+                            ODISHA <span class="text-blue-500">WRI</span>
+                        </h1>
+                        <span id="day-night-badge"
+                            class="text-[0.65rem] font-bold px-2 py-0.5 rounded-full border border-indigo-500/40 bg-indigo-950/60 text-indigo-300 flex items-center gap-1">
+                            <i id="day-night-icon" data-lucide="moon" class="w-3 h-3 text-indigo-400"></i>
+                            <span id="day-night-text">NIGHTTIME</span>
+                        </span>
+                    </div>
+                    <p class="subtext text-[0.68rem] font-bold tracking-wider uppercase mt-0.5">
+                        District Weather Safety & Risk Intelligence
+                    </p>
                 </div>
-                <p class="subtext text-[0.68rem] font-bold tracking-wider uppercase mt-0.5">
-                    District Weather Safety & Risk Intelligence
-                </p>
             </div>
 
             <!-- Theme Override Controls -->

@@ -50,19 +50,18 @@ export default function TopNavigation({
               onClick={() => onTabChange('home')}
               className="flex items-center gap-2.5 group cursor-pointer focus:outline-none"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-transform">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
+              <img 
+                src="/logo-mark.svg" 
+                alt="Odisha WRI Emblem" 
+                className="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/10 group-hover:scale-105 transition-transform object-contain"
+              />
               <div className="text-left">
                 <div className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
                   <span>ODISHA</span>
-                  <span className="text-blue-400">WRI</span>
-                  <span className="text-[0.6rem] font-bold px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                    2.0
-                  </span>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">WRI</span>
                 </div>
                 <div className="text-[0.62rem] font-medium text-slate-400 truncate max-w-[150px] sm:max-w-none">
-                  Workability & Disaster Intelligence
+                  Workability Risk Index • 30 Districts
                 </div>
               </div>
             </button>
