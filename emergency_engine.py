@@ -347,6 +347,22 @@ class AlertStore:
                 except Exception:
                     pass
 
+    def resolve_inactive_alerts_for_district(self, district_name: str, active_categories: List[str]):
+        """
+        Resolves automatic meteorological alerts for a district whose underlying trigger has subsided.
+        Prevents outdated or non-qualifying hazards from lingering in the active alert pool.
+        """
+        for aid, a in list(self.alerts.items()):
+            if not a.get("is_simulation", False) and a.get("status") in ["active", "updated"]:
+                affected = a.get("affected_districts", [])
+                if any(district_name.lower() in d.lower() or d.lower() in district_name.lower() for d in affected):
+                    cat = a.get("category")
+                    if cat in ["OFFICIAL_HEATWAVE", "EXTREME_HEATWAVE", "THERMAL_DISCOMFORT", "HIGH_HEAT_INDEX", "HEAVY_RAIN", "FLASH_FLOOD", "CYCLONE", "SEVERE_CYCLONE", "THUNDERSTORM_LIGHTNING"]:
+                        if cat not in active_categories:
+                            a["status"] = "resolved"
+                            a["resolved_at"] = datetime.now().astimezone().isoformat()
+                            self.log_audit("SYSTEM", "RESOLVE_ALERT", f"Alert {aid} ({cat}) automatically resolved for {district_name}")
+
     def get_active_alerts(self, district: Optional[str] = None, include_simulated: bool = True) -> List[Dict[str, Any]]:
         self.clean_expired_alerts()
         active = []
@@ -567,22 +583,41 @@ def evaluate_and_generate_alerts_for_district(
             "shelter_advisory": "High plinth flood shelters identified in downstream riverine zones."
         })
 
-    # 4. EXTREME HEATWAVE & SEVERE THERMAL HAZARD
-    if heat_index >= 43.0 or temp_max >= 42.0:
-        severity_level = 4 if heat_index >= 48.0 or temp_max >= 45.0 else 3
+    # 4. SCIENTIFIC IMD HEATWAVE vs. ODISHA WRI THERMAL STRESS CLASSIFICATION
+    # IMD Baseline Thresholds:
+    # - Coastal stations (coast_km <= 40 km): Max temperature must reach >= 37.0°C to be a heatwave
+    # - Hilly stations (elevation >= 450 m): Max temperature must reach >= 30.0°C
+    # - Plains / Interior stations: Max temperature must reach >= 40.0°C
+    is_coastal = (dist_to_coast_km <= 40.0)
+    is_hilly = (elevation_m >= 450.0)
+    imd_base_threshold = 37.0 if is_coastal else (30.0 if is_hilly else 40.0)
+
+    # A. Genuine IMD Heatwave Criteria (Based on verified air temperature)
+    is_imd_heatwave = False
+    heatwave_severity = 0
+    if temp_max >= imd_base_threshold:
+        # Severe heatwave: Plains >= 45°C, Coastal >= 41°C, Hilly >= 35°C
+        if (is_coastal and temp_max >= 41.0) or (is_hilly and temp_max >= 35.0) or (not is_coastal and not is_hilly and temp_max >= 45.0):
+            is_imd_heatwave = True
+            heatwave_severity = 4  # Level 4: Critical Emergency
+        elif temp_max >= (imd_base_threshold + 2.0):
+            is_imd_heatwave = True
+            heatwave_severity = 3  # Level 3: Warning
+
+    if is_imd_heatwave:
         generated_alerts.append({
-            "alert_id": f"ALRT-HEAT-{district_name}-{int(time.time() // 3600)}",
+            "alert_id": f"ALRT-IMDHEAT-{district_name}-{int(time.time() // 3600)}",
             "parent_event_id": f"EVENT-HEAT-{district_name}",
-            "category": "EXTREME_HEATWAVE",
-            "severity_level": severity_level,
-            "severity_label": ALERT_LEVELS[severity_level]["name"],
-            "headline": f"{ALERT_LEVELS[severity_level]['name'].upper()}: Dangerous Heatwave Warning for {district_name} (HI: {heat_index:.1f}°C)",
+            "category": "OFFICIAL_HEATWAVE",
+            "severity_level": heatwave_severity,
+            "severity_label": ALERT_LEVELS[heatwave_severity]["name"],
+            "headline": f"{ALERT_LEVELS[heatwave_severity]['name'].upper()}: Official Heatwave Warning for {district_name} (Air Temp: {temp_max:.1f}°C)",
             "affected_districts": [district_name],
             "issue_time": now_iso,
             "expected_start_time": now_iso,
             "valid_until": valid_until,
-            "issuing_authority": "OSDMA Heat Action Plan & IMD Warning",
-            "official_reference": "State Relief Commissioner Heatwave Advisory Criteria",
+            "issuing_authority": "IMD Meteorological Centre Bhubaneswar / OSDMA",
+            "official_reference": f"IMD Operational Heatwave Criteria (Tmax {temp_max:.1f}°C exceeds threshold {imd_base_threshold:.1f}°C)",
             "is_official": True,
             "is_simulation": False,
             "action_instructions": [
@@ -593,6 +628,54 @@ def evaluate_and_generate_alerts_for_district(
             ],
             "shelter_advisory": "Cool public shelters and Jalachhatras (drinking water kiosks) operational across blocks."
         })
+    # B. Odisha WRI Calculated Thermal Stress (Based on Apparent Heat Index & WBGT)
+    # Distinctly labelled as an internal calculation; does NOT falsely claim IMD warning or sound emergency sirens
+    elif heat_index >= 40.0:
+        if heat_index >= 48.0 and temp_max >= 36.0:
+            # High thermal strain
+            severity_level = 3
+            category = "EXTREME_HEATWAVE"
+            title_prefix = "WARNING: Extreme Thermal Stress"
+        elif heat_index >= 44.0:
+            # Elevated heat stress (common in humid coastal zones) -> Watch / Advisory (Level 2)
+            # Level 2 DOES NOT sound the siren!
+            severity_level = 2
+            category = "THERMAL_DISCOMFORT"
+            title_prefix = "WATCH: High Thermal Discomfort"
+        else:
+            # Moderate heat index (40-44°C) -> Information Advisory (Level 1)
+            # Level 1 DOES NOT sound the siren!
+            severity_level = 1
+            category = "THERMAL_DISCOMFORT"
+            title_prefix = "ADVISORY: Heat Index Caution"
+
+        generated_alerts.append({
+            "alert_id": f"ALRT-WRIHEAT-{district_name}-{int(time.time() // 3600)}",
+            "parent_event_id": f"EVENT-WRIHEAT-{district_name}",
+            "category": category,
+            "severity_level": severity_level,
+            "severity_label": ALERT_LEVELS[severity_level]["name"],
+            "headline": f"{title_prefix} for {district_name} (Heat Index: {heat_index:.1f}°C, Air Temp: {temp_c:.1f}°C)",
+            "affected_districts": [district_name],
+            "issue_time": now_iso,
+            "expected_start_time": now_iso,
+            "valid_until": valid_until,
+            "issuing_authority": "Odisha WRI Meteorological Heat Stress Model",
+            "official_reference": f"Calculated Apparent Heat Index ({heat_index:.1f}°C) from ambient temperature ({temp_c:.1f}°C) and relative humidity",
+            "is_official": False,
+            "is_simulation": False,
+            "action_instructions": [
+                f"High humidity elevates apparent heat index to {heat_index:.1f}°C despite ambient temperature being {temp_c:.1f}°C.",
+                "Drink plenty of potable water before, during, and after physical work.",
+                "Take 10-15 minute resting pauses in shaded, well-ventilated areas every hour.",
+                "Agricultural & construction managers: Ensure readily available drinking water and shaded rest sheds."
+            ],
+            "shelter_advisory": "Shaded resting shelters and drinking water points recommended for outdoor work sites."
+        })
+
+    # Resolve inactive categories for this district in global store
+    active_categories = [a["category"] for a in generated_alerts]
+    GLOBAL_ALERT_STORE.resolve_inactive_alerts_for_district(district_name, active_categories)
 
     # Register each generated alert into the global store
     for alert in generated_alerts:

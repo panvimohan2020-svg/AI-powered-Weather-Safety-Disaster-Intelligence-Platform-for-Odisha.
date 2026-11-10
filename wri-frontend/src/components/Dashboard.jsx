@@ -416,13 +416,19 @@ export default function Dashboard() {
                       weather={{
                         temperature_c: wriData.weather?.temperature_c,
                         apparent_temperature_c: wriData.weather?.apparent_temperature_c,
+                        heat_index_c: wriData.weather?.heat_index_c,
+                        wbgt_c: wriData.weather?.wbgt_c,
                         weather_condition: wriData.weather?.condition,
                         icon: wriData.weather?.icon,
                         humidity_percent: wriData.weather?.humidity_percent,
                         wind_speed_kmh: wriData.weather?.wind_speed_kmh,
                         wind_gusts_kmh: wriData.weather?.wind_gusts_kmh,
                         rain_probability: wriData.prediction?.rain_probability,
-                        uv_index: wriData.daily?.uv_index_max?.[1] ?? 5.0
+                        uv_index: wriData.weather?.uv_index ?? wriData.daily?.uv_index_max?.[1] ?? 5.0,
+                        data_source: wriData.weather?.data_source,
+                        data_status: wriData.weather?.data_status,
+                        last_updated_ist: wriData.weather?.last_updated_ist,
+                        transparent_deductions: wriData.prediction?.transparent_deductions
                       }}
                       lastUpdated={lastUpdatedTime}
                       onRefresh={() => fetchData({ district: selectedDistrict })}
@@ -884,6 +890,10 @@ export default function Dashboard() {
         onNavigateShelters={() => {
           setShowEmergencyModal(false);
           setActiveTab('shelters');
+        }}
+        onOpenContacts={() => {
+          setShowEmergencyModal(false);
+          setActiveTab('alerts');
         }}
       />
 

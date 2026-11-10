@@ -854,7 +854,11 @@ async def predict_wri(req: PredictionRequest):
             "sunrise_iso": sunrise_raw,
             "sunset_iso": sunset_raw,
             "timezone": "Asia/Kolkata",
-            "observation_time": now_iso
+            "observation_time": now_iso,
+            "provider_timestamp": current.get("time", now_iso),
+            "data_source": "Odisha Climatological Fallback (Lapse Rate Model)" if weather_data.get("fallback_used") else "Open-Meteo High-Resolution NWP (ECMWF & GFS Seamless)",
+            "data_status": "ESTIMATED_FALLBACK" if weather_data.get("fallback_used") else "LIVE",
+            "last_updated_ist": datetime.now().astimezone().strftime("%I:%M %p IST")
         },
         "prediction": {
             "predicted_risk_level": safety_result["predicted_risk_level"],

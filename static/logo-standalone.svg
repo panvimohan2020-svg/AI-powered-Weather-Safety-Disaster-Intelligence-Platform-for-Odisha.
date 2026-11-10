@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cyberBorderS" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <linearGradient id="solarAmberS" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+    <linearGradient id="coastalCyanS" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <linearGradient id="safetyEmeraldS" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Faceted Heraldic Shield -->
+  <path d="M 256 64 L 418 108 C 424 230, 376 348, 256 448 C 136 348, 88 230, 94 108 Z"
+        fill="#0b1329" stroke="url(#cyberBorderS)" stroke-width="14" stroke-linejoin="round" />
+
+  <!-- Inner Inset Shield -->
+  <path d="M 256 94 L 392 130 C 396 226, 356 322, 256 410 C 156 322, 116 226, 120 130 Z"
+        fill="#070c1a" stroke="#1e293b" stroke-width="4" />
+
+  <!-- Solar Heat Core -->
+  <circle cx="256" cy="190" r="48" fill="url(#solarAmberS)" />
+  <g stroke="#fbbf24" stroke-width="5" stroke-linecap="round" opacity="0.95">
+    <line x1="256" y1="126" x2="256" y2="108" />
+    <line x1="256" y1="254" x2="256" y2="272" />
+    <line x1="192" y1="190" x2="174" y2="190" />
+    <line x1="320" y1="190" x2="338" y2="190" />
+  </g>
+
+  <!-- Coastal Wave -->
+  <path d="M 140 285 Q 198 245, 256 278 T 372 272 C 356 335, 312 378, 256 405 C 200 378, 156 335, 140 285 Z"
+        fill="url(#coastalCyanS)" opacity="0.85" />
+
+  <!-- Safety Emerald Wave -->
+  <path d="M 160 312 Q 208 285, 256 305 T 352 305 C 332 350, 298 382, 256 402 C 214 382, 180 350, 160 312 Z"
+        fill="url(#safetyEmeraldS)" />
+
+  <!-- Telemetry Pulse -->
+  <path d="M 198 268 L 236 268 L 252 235 L 268 295 L 282 255 L 294 268 L 316 268" 
+        fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
